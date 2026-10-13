@@ -19,6 +19,10 @@ public struct Channel: Codable, Sendable, Hashable, Identifiable {
     public var streamURL: String?
     public var xtreamStreamID: Int?
     public var epgChannelID: String?
+    /// A guide id the user picked for this channel, replacing the automatic match. Survives resyncs.
+    public var epgOverride: String?
+    /// The guide channel this channel is matched to. Kept up to date by the database.
+    public var guideID: String?
     /// Days of catch-up archive the provider keeps, if any.
     public var catchupDays: Int?
     public var userAgent: String?
@@ -36,6 +40,8 @@ public struct Channel: Codable, Sendable, Hashable, Identifiable {
         streamURL: String? = nil,
         xtreamStreamID: Int? = nil,
         epgChannelID: String? = nil,
+        epgOverride: String? = nil,
+        guideID: String? = nil,
         catchupDays: Int? = nil,
         userAgent: String? = nil,
         referrer: String? = nil,
@@ -51,6 +57,8 @@ public struct Channel: Codable, Sendable, Hashable, Identifiable {
         self.streamURL = streamURL
         self.xtreamStreamID = xtreamStreamID
         self.epgChannelID = epgChannelID
+        self.epgOverride = epgOverride
+        self.guideID = guideID
         self.catchupDays = catchupDays
         self.userAgent = userAgent
         self.referrer = referrer

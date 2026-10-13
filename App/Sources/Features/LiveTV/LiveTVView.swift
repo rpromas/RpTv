@@ -75,6 +75,7 @@ struct LiveTVView: View {
         guard let source = model.activeSource else { return }
         do {
             try await model.sync(source)
+            model.refreshGuideInBackground(source, force: false)
         } catch {
             model.alertMessage = error.localizedDescription
         }
@@ -118,15 +119,17 @@ struct ChannelListView: View {
     @State private var hasLoaded = false
 
     var body: some View {
-        List(channels) { channel in
-            Button {
-                model.play(channel, in: ChannelListContext(sourceID: sourceID, categoryID: categoryID, title: title))
-            } label: {
-                ChannelRow(channel: channel)
+        NowNextReader(database: model.database, channelIDs: channels.compactMap(\.id)) { nowNext, now in
+            List(channels) { channel in
+                Button {
+                    model.play(channel, in: ChannelListContext(sourceID: sourceID, categoryID: categoryID, title: title))
+                } label: {
+                    ChannelRow(channel: channel, nowNext: channel.id.flatMap { nowNext[$0] }, now: now)
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
+            .listStyle(.plain)
         }
-        .listStyle(.plain)
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
         .searchable(text: $search, prompt: "Search channels")

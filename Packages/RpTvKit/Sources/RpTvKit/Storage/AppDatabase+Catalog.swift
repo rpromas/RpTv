@@ -84,12 +84,18 @@ extension AppDatabase {
     }
 
     /// Atomically swaps a source's live channels for `catalog`. Readers keep seeing the old catalog until
-    /// the transaction commits. Categories the user hid stay hidden.
+    /// the transaction commits. Categories the user hid stay hidden, guide overrides stay on their channels,
+    /// and channels are matched to the guide the source already has.
     public func replaceLiveCatalog(sourceID: Int64, with catalog: LiveCatalog) async throws {
         try await writer.write { db in
             let liveCategories = MediaCategory
                 .filter(Column("sourceID") == sourceID && Column("kind") == MediaCategory.Kind.live)
             let hiddenRemoteIDs = try Set(String.fetchAll(db, liveCategories.filter(Column("isHidden") == true).select(Column("remoteID"))))
+
+            let overrides = try Dictionary(
+                Row.fetchAll(db, sql: "SELECT stableKey, epgOverride FROM channel WHERE sourceID = ? AND epgOverride IS NOT NULL",
+                             arguments: [sourceID]).map { ($0["stableKey"] as String, $0["epgOverride"] as String) },
+                uniquingKeysWith: { first, _ in first })
 
             try Channel.filter(Column("sourceID") == sourceID).deleteAll(db)
             try liveCategories.deleteAll(db)
@@ -106,8 +112,12 @@ extension AppDatabase {
                 var channel = item.channel
                 channel.sourceID = sourceID
                 channel.categoryID = item.groupRemoteID.flatMap { categoryIDs[$0] }
+                channel.epgOverride = overrides[channel.stableKey]
+                channel.guideID = nil
                 try channel.insert(db)
             }
+
+            try Self.resolveGuideIDs(db, sourceID: sourceID)
         }
     }
 }
@@ -161,7 +171,7 @@ extension AppDatabase {
         try await reader.read { db in try Channel.filter(Column("sourceID") == sourceID).fetchCount(db) }
     }
 
-    private func observe<T: Sendable & Equatable>(_ fetch: @escaping @Sendable (Database) throws -> T) -> AsyncThrowingStream<T, Error> {
+    func observe<T: Sendable & Equatable>(_ fetch: @escaping @Sendable (Database) throws -> T) -> AsyncThrowingStream<T, Error> {
         let values = ValueObservation.tracking(fetch).removeDuplicates().values(in: reader)
         return AsyncThrowingStream { continuation in
             let task = Task {

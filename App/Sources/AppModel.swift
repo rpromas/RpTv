@@ -13,6 +13,7 @@ final class AppModel {
     let database: AppDatabase
     let credentials: any CredentialStore
     let syncService: SourceSyncService
+    let epgSyncService: EPGSyncService
     let resolver: PlaybackResolver
     /// Set when the on-disk database couldn't be opened and the app fell back to memory.
     let startupError: String?
@@ -21,6 +22,8 @@ final class AppModel {
     private(set) var hasLoadedSources = false
     /// Sources with a sync in progress, and how far along each is.
     private(set) var syncPhases: [Int64: SyncPhase] = [:]
+    /// Sources whose TV guide is being downloaded.
+    private(set) var guideSyncing: Set<Int64> = []
     /// The player on screen, if any.
     var playerSession: PlayerSession?
     /// A user-facing error to show in an alert.
@@ -41,6 +44,7 @@ final class AppModel {
         self.database = database
         self.credentials = credentials
         self.syncService = SourceSyncService(database: database, credentials: credentials, playlistDirectory: playlistDirectory)
+        self.epgSyncService = EPGSyncService(database: database, credentials: credentials)
         self.resolver = PlaybackResolver(credentials: credentials)
         self.startupError = startupError
         self.activeSourceID = (UserDefaults.standard.object(forKey: Self.activeSourceKey) as? NSNumber)?.int64Value
@@ -94,7 +98,7 @@ final class AppModel {
         try await addAndSync(source)
     }
 
-    func addPlaylistFile(name: String, fileURL: URL) async throws {
+    func addPlaylistFile(name: String, fileURL: URL, epgURL: String?) async throws {
         let accessing = fileURL.startAccessingSecurityScopedResource()
         defer { if accessing { fileURL.stopAccessingSecurityScopedResource() } }
         let fileName = "\(UUID().uuidString).m3u"
@@ -103,7 +107,8 @@ final class AppModel {
             name: name.nonEmptyTrimmed ?? fileURL.deletingPathExtension().lastPathComponent,
             kind: .m3u,
             location: fileName,
-            isLocalFile: true
+            isLocalFile: true,
+            epgURL: epgURL?.nonEmptyTrimmed
         )
         do {
             try await addAndSync(source)
@@ -145,6 +150,7 @@ final class AppModel {
         do {
             try await sync(saved)
             activeSourceID = saved.id
+            refreshGuideInBackground(saved, force: true)
         } catch {
             try? await database.deleteSource(id: saved.id!)
             throw error
@@ -167,6 +173,49 @@ final class AppModel {
     func refreshStaleSources() async {
         for source in sources where (source.lastSyncedAt ?? .distantPast).timeIntervalSinceNow < -Self.staleInterval {
             try? await sync(source)
+        }
+    }
+
+    // MARK: - TV guide
+
+    /// Downloads a source's TV guide unless it is already being downloaded. Without `force`, only when
+    /// the guide is over 12 hours old. Failures are recorded on the source rather than shown in an alert,
+    /// since this runs in the background.
+    func syncGuide(sourceID: Int64, force: Bool) async {
+        guard guideSyncing.insert(sourceID).inserted else { return }
+        defer { guideSyncing.remove(sourceID) }
+        // Re-read the source: a catalog sync may just have found its guide URL.
+        guard let source = try? await database.source(id: sourceID), EPGSyncService.hasGuide(source),
+              force || EPGSyncService.isStale(source) else { return }
+        try? await epgSyncService.sync(source)
+    }
+
+    /// Starts a guide refresh without waiting for it, so it never holds up a catalog sync.
+    func refreshGuideInBackground(_ source: Source, force: Bool) {
+        guard let id = source.id else { return }
+        Task { await syncGuide(sourceID: id, force: force) }
+    }
+
+    /// Refreshes guides older than 12 hours, one source at a time.
+    func refreshStaleGuides() async {
+        for id in sources.compactMap(\.id) {
+            await syncGuide(sourceID: id, force: false)
+        }
+    }
+
+    /// Saves the guide URL the user entered (empty clears it) and downloads the guide again.
+    func setEPGURL(_ text: String, for source: Source) async {
+        guard let id = source.id else { return }
+        let epgURL = text.nonEmptyTrimmed
+        guard epgURL != source.epgURL else { return }
+        do {
+            try await database.modifySource(id: id) {
+                $0.epgURL = epgURL
+                $0.lastEPGSyncError = nil
+            }
+            await syncGuide(sourceID: id, force: true)
+        } catch {
+            alertMessage = error.localizedDescription
         }
     }
 

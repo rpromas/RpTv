@@ -74,6 +74,10 @@ public struct SourceSyncService: Sendable {
     }
 
     public func xtreamCredentials(for source: Source) throws -> XtreamCredentials {
+        try Self.xtreamCredentials(for: source, in: credentials)
+    }
+
+    static func xtreamCredentials(for source: Source, in credentials: any CredentialStore) throws -> XtreamCredentials {
         guard let key = source.credentialKey, let password = try credentials.password(for: key) else {
             throw SyncError.missingPassword
         }

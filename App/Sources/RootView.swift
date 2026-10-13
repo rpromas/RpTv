@@ -22,6 +22,10 @@ struct RootView: View {
         .task(id: model.hasLoadedSources) {
             if model.hasLoadedSources { await model.refreshStaleSources() }
         }
+        // Guides refresh on their own schedule, alongside the catalogs.
+        .task(id: model.hasLoadedSources) {
+            if model.hasLoadedSources { await model.refreshStaleGuides() }
+        }
         .fullScreenCover(item: $model.playerSession) { session in
             PlayerScreen(session: session)
         }

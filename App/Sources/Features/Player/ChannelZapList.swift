@@ -13,26 +13,9 @@ struct ChannelZapList: View {
 
     var body: some View {
         ScrollViewReader { proxy in
-            List(session.zapList.channels, id: \.stableKey) { channel in
-                let isCurrent = channel.stableKey == session.channel.stableKey
-                Button {
-                    session.zap(to: channel)
-                } label: {
-                    HStack(spacing: 8) {
-                        ChannelRow(channel: channel)
-                        if isCurrent {
-                            Image(systemName: "speaker.wave.2.fill")
-                                .symbolEffect(.variableColor.iterative)
-                                .foregroundStyle(.tint)
-                                .accessibilityLabel("Playing")
-                        }
-                    }
-                }
-                .buttonStyle(.plain)
-                .listRowBackground(isCurrent ? Color.accentColor.opacity(0.18) : Color.clear)
+            NowNextReader(database: session.database, channelIDs: session.zapList.channels.compactMap(\.id)) { nowNext, now in
+                list(nowNext: nowNext, now: now)
             }
-            .listStyle(.plain)
-            .scrollContentBackground(.hidden)
             // The list arrives after the player opens: scroll to the current channel once it's there.
             .onChange(of: session.zapList.channels.count, initial: true) {
                 guard !hasScrolledToCurrent, session.zapList.currentIndex != nil else { return }
@@ -43,6 +26,29 @@ struct ChannelZapList: View {
                 withAnimation { proxy.scrollTo(key, anchor: .center) }
             }
         }
+    }
+
+    private func list(nowNext: [Int64: NowNext], now: Date) -> some View {
+        List(session.zapList.channels, id: \.stableKey) { channel in
+            let isCurrent = channel.stableKey == session.channel.stableKey
+            Button {
+                session.zap(to: channel)
+            } label: {
+                HStack(spacing: 8) {
+                    ChannelRow(channel: channel, nowNext: channel.id.flatMap { nowNext[$0] }, now: now)
+                    if isCurrent {
+                        Image(systemName: "speaker.wave.2.fill")
+                            .symbolEffect(.variableColor.iterative)
+                            .foregroundStyle(.tint)
+                            .accessibilityLabel("Playing")
+                    }
+                }
+            }
+            .buttonStyle(.plain)
+            .listRowBackground(isCurrent ? Color.accentColor.opacity(0.18) : Color.clear)
+        }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
     }
 }
 

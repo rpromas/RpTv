@@ -21,7 +21,8 @@ public struct Source: Codable, Sendable, Hashable, Identifiable {
     /// Xtream username. The password lives in the keychain under credentialKey.
     public var username: String?
     public var credentialKey: String?
-    /// XMLTV guide URL. For M3U it may come from the playlist header; for Xtream it defaults to `xmltv.php`.
+    /// XMLTV guide URL. For M3U it may come from the playlist header. For Xtream it is an optional override:
+    /// otherwise the guide URL is built from the credentials at sync time, since it embeds the password.
     public var epgURL: String?
     public var userAgent: String?
     public var referrer: String?
@@ -32,6 +33,8 @@ public struct Source: Codable, Sendable, Hashable, Identifiable {
     public var createdAt: Date
     public var lastSyncedAt: Date?
     public var lastSyncError: String?
+    public var lastEPGSyncAt: Date?
+    public var lastEPGSyncError: String?
 
     public init(
         id: Int64? = nil,
@@ -48,7 +51,9 @@ public struct Source: Codable, Sendable, Hashable, Identifiable {
         enginePreference: EnginePreference = .automatic,
         createdAt: Date = .now,
         lastSyncedAt: Date? = nil,
-        lastSyncError: String? = nil
+        lastSyncError: String? = nil,
+        lastEPGSyncAt: Date? = nil,
+        lastEPGSyncError: String? = nil
     ) {
         self.id = id
         self.name = name
@@ -65,6 +70,8 @@ public struct Source: Codable, Sendable, Hashable, Identifiable {
         self.createdAt = createdAt
         self.lastSyncedAt = lastSyncedAt
         self.lastSyncError = lastSyncError
+        self.lastEPGSyncAt = lastEPGSyncAt
+        self.lastEPGSyncError = lastEPGSyncError
     }
 
     /// HTTP headers every request for this source should carry.

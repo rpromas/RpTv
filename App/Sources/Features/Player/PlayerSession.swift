@@ -27,7 +27,7 @@ final class PlayerSession: Identifiable {
     var errorMessage: String?
 
     @ObservationIgnored private let source: Source
-    @ObservationIgnored private let database: AppDatabase
+    @ObservationIgnored let database: AppDatabase
     @ObservationIgnored private let resolver: PlaybackResolver
     @ObservationIgnored private let firstItem: PlaybackItem
 

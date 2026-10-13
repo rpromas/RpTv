@@ -75,6 +75,7 @@ struct SettingsView: View {
         Task {
             do {
                 try await model.sync(source)
+                model.refreshGuideInBackground(source, force: true)
             } catch {
                 model.alertMessage = error.localizedDescription
             }

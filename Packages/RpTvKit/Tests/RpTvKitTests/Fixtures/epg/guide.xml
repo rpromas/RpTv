@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE tv SYSTEM "xmltv.dtd">
+<tv generator-info-name="RpTv test fixture">
+  <channel id="news.one">
+    <display-name>News One</display-name>
+    <display-name lang="fr">Nouvelles Un</display-name>
+    <icon src="http://logo.example.com/news-one.png"/>
+  </channel>
+  <channel id="Sport.Two">
+    <display-name>Sport 2</display-name>
+    <display-name>Sport Two FHD</display-name>
+  </channel>
+  <channel id="logo.channel">
+    <display-name>Unquoted-Logo HD</display-name>
+  </channel>
+  <channel id="unknown.channel">
+    <display-name>Nobody Watches This</display-name>
+  </channel>
+  <channel>
+    <display-name>Channel without id</display-name>
+  </channel>
+
+  <programme start="20261013080000 +0000" stop="20261013090000 +0000" channel="news.one">
+    <title lang="en">Old News</title>
+  </programme>
+  <programme start="20261014100000 +0200" stop="20261014110000 +0200" channel="news.one">
+    <title lang="en">Morning Bulletin</title>
+    <title lang="fr">Bulletin du matin</title>
+    <desc lang="en">The headlines &amp; the weather.</desc>
+    <category lang="en">News</category>
+    <category lang="en">Current affairs</category>
+    <icon src="http://img.example.com/bulletin.jpg"/>
+  </programme>
+  <programme start="20261014090000" stop="20261014100000" channel="news.one">
+    <title>Midday Report</title>
+  </programme>
+  <programme start="20261014050000 -0500" channel="news.one">
+    <title>Afternoon Talk</title>
+  </programme>
+  <programme start="20261014120000 +0000" stop="20261014130000 +0000" channel="news.one">
+    <title>Evening News</title>
+  </programme>
+
+  <programme start="20261014073000 +0000" stop="20261014093000 +0000" channel="sport.two">
+    <title>Match of the Day</title>
+  </programme>
+  <programme start="20261014093000 +0000" channel="sport.two">
+    <title>Late Highlights</title>
+  </programme>
+
+  <programme start="20261014080000 +0000" stop="20261014100000 +0000" channel="logo.channel">
+    <title>Logo Movie</title>
+  </programme>
+
+  <programme start="20261014080000 +0000" stop="20261014100000 +0000" channel="unknown.channel">
+    <title>Unwatched Show</title>
+  </programme>
+  <programme start="20261014080000 +0000" stop="20261014100000 +0000" channel="undeclared.channel">
+    <title>Orphan Show</title>
+  </programme>
+  <programme stop="20261014100000 +0000" channel="news.one">
+    <title>No Start</title>
+  </programme>
+  <programme start="garbage" channel="news.one">
+    <title>Bad Start</title>
+  </programme>
+</tv>

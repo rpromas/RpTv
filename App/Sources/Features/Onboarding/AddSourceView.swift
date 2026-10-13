@@ -183,7 +183,7 @@ struct AddSourceView: View {
                 try await model.addPlaylist(name: name, url: playlistURL, epgURL: epgURL, userAgent: userAgent)
             case .playlistFile:
                 guard let pickedFile else { return }
-                try await model.addPlaylistFile(name: name, fileURL: pickedFile)
+                try await model.addPlaylistFile(name: name, fileURL: pickedFile, epgURL: epgURL)
             }
             dismiss()
         } catch {

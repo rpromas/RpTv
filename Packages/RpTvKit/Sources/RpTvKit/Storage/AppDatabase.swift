@@ -91,6 +91,41 @@ public final class AppDatabase: Sendable {
             }
         }
 
+        migrator.registerMigration("v3") { db in
+            try db.alter(table: Source.databaseTableName) { t in
+                t.add(column: "lastEPGSyncAt", .datetime)
+                t.add(column: "lastEPGSyncError", .text)
+            }
+            try db.alter(table: Channel.databaseTableName) { t in
+                t.add(column: "epgOverride", .text)
+                t.add(column: "guideID", .text)
+            }
+
+            try db.create(table: GuideChannel.databaseTableName) { t in
+                t.column("sourceID", .integer).notNull().references(Source.databaseTableName, onDelete: .cascade)
+                t.column("id", .text).notNull()
+                t.column("name", .text).notNull()
+                t.column("names", .text).notNull()
+                t.column("iconURL", .text)
+                t.primaryKey(["sourceID", "id"])
+            }
+
+            // Times are stored as Unix seconds so range queries stay cheap.
+            try db.create(table: Programme.databaseTableName) { t in
+                t.autoIncrementedPrimaryKey("id")
+                t.column("sourceID", .integer).notNull().references(Source.databaseTableName, onDelete: .cascade)
+                t.column("epgChannelID", .text).notNull()
+                t.column("start", .integer).notNull()
+                t.column("stop", .integer)
+                t.column("title", .text).notNull()
+                t.column("summary", .text)
+                t.column("category", .text)
+                t.column("iconURL", .text)
+            }
+            try db.create(index: "programme_source_channel_start", on: Programme.databaseTableName,
+                          columns: ["sourceID", "epgChannelID", "start"])
+        }
+
         return migrator
     }
 }
@@ -121,6 +156,26 @@ extension MediaCategory.Kind: DatabaseValueConvertible {}
 
 extension Channel: FetchableRecord, MutablePersistableRecord {
     public static let databaseTableName = "channel"
+
+    public mutating func didInsert(_ inserted: InsertionSuccess) {
+        id = inserted.rowID
+    }
+}
+
+extension GuideChannel: FetchableRecord, PersistableRecord {
+    public static let databaseTableName = "epgChannel"
+}
+
+extension Programme: FetchableRecord, MutablePersistableRecord {
+    public static let databaseTableName = "programme"
+
+    public static func databaseDateEncodingStrategy(for column: String) -> DatabaseDateEncodingStrategy {
+        .timeIntervalSince1970
+    }
+
+    public static func databaseDateDecodingStrategy(for column: String) -> DatabaseDateDecodingStrategy {
+        .timeIntervalSince1970
+    }
 
     public mutating func didInsert(_ inserted: InsertionSuccess) {
         id = inserted.rowID

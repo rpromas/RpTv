@@ -29,6 +29,23 @@ extension URLSession: HTTPClient {
     }
 }
 
+/// Downloads a response body to a temporary file, for payloads too big to hold in memory.
+/// The caller owns the returned file and deletes it.
+public protocol HTTPDownloader: Sendable {
+    func download(_ request: URLRequest) async throws -> (URL, HTTPURLResponse)
+}
+
+extension URLSession: HTTPDownloader {
+    public func download(_ request: URLRequest) async throws -> (URL, HTTPURLResponse) {
+        let (file, response) = try await download(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            try? FileManager.default.removeItem(at: file)
+            throw HTTPError.notHTTP
+        }
+        return (file, http)
+    }
+}
+
 extension URLRequest {
     init(url: URL, headers: [String: String]) {
         self.init(url: url)

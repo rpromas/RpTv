@@ -1,0 +1,95 @@
+# XcodeGen spec. Run `xcodegen generate` to create RpTv.xcodeproj (not checked in).
+name: RpTv
+options:
+  bundleIdPrefix: app.rptv
+  deploymentTarget:
+    iOS: "26.0"
+  createIntermediateGroups: true
+  developmentLanguage: en
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    SWIFT_STRICT_CONCURRENCY: complete
+
+packages:
+  RpTvKit:
+    path: Packages/RpTvKit
+  Nuke:
+    url: https://github.com/kean/Nuke
+    from: "13.2.0"
+
+targets:
+  RpTv:
+    type: application
+    platform: iOS
+    sources:
+      - App
+    dependencies:
+      - package: RpTvKit
+      - package: Nuke
+        product: Nuke
+      - package: Nuke
+        product: NukeUI
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.rptv.RpTv
+        TARGETED_DEVICE_FAMILY: "1,2"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        CODE_SIGN_STYLE: Automatic
+        # Set your Apple Developer team ID here (or in Xcode) to run on a device.
+        DEVELOPMENT_TEAM: ""
+    info:
+      path: App/Info.plist
+      properties:
+        CFBundleDisplayName: RpTv
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSApplicationCategoryType: public.app-category.entertainment
+        ITSAppUsesNonExemptEncryption: false
+        UILaunchScreen: {}
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: true
+        UIBackgroundModes: [audio]
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        # IPTV servers are user-supplied and very often plain HTTP.
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
+        NSLocalNetworkUsageDescription: RpTv connects to IPTV servers on your local network when you add one.
+
+  RpTvUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - UITests
+    dependencies:
+      - target: RpTv
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.rptv.RpTvUITests
+        GENERATE_INFOPLIST_FILE: YES
+        TARGETED_DEVICE_FAMILY: "1,2"
+
+schemes:
+  RpTv:
+    build:
+      targets:
+        RpTv: all
+    test:
+      targets:
+        - package: RpTvKit/RpTvKitTests
+        - RpTvUITests
+    run:
+      config: Debug

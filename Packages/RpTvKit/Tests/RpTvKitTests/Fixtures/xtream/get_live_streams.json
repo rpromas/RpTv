@@ -1,0 +1,5 @@
+[
+ {"num":1,"name":"News One","stream_type":"live","stream_id":101,"stream_icon":"http://logo.example.com/1.png","epg_channel_id":"news.one","added":"1700000000","category_id":"1","custom_sid":"","tv_archive":1,"direct_source":"","tv_archive_duration":"7"},
+ {"num":"2","name":"Sport Two","stream_type":"live","stream_id":"102","stream_icon":"","epg_channel_id":null,"added":"1700000000","category_id":2,"tv_archive":0,"direct_source":"","tv_archive_duration":0},
+ {"num":3,"name":"No ID Channel","stream_type":"live","stream_icon":""}
+]

@@ -2,7 +2,7 @@
 #EXTINF:-1 tvg-id="news.one" tvg-name="News One" tvg-logo="http://logo.example.com/n1.png" group-title="News",News One HD
 http://stream.example.com/live/news1.m3u8
 
-#EXTINF:-1 tvg-id="sport.two" tvg-chno="7" group-title="Sports, Live" catchup-days="3",Sport 2, Extra
+#EXTINF:-1 tvg-id="sport.two" tvg-chno="7" group-title="Sports, Live" catchup="shift" catchup-days="3",Sport 2, Extra
 #EXTVLCOPT:http-user-agent=CustomAgent/1.0
 #EXTVLCOPT:http-referrer=http://ref.example.com/
 http://stream.example.com/live/sport2.ts

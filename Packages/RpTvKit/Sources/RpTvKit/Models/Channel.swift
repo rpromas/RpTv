@@ -25,6 +25,11 @@ public struct Channel: Codable, Sendable, Hashable, Identifiable {
     public var guideID: String?
     /// Days of catch-up archive the provider keeps, if any.
     public var catchupDays: Int?
+    /// How an M3U channel's archive URL is built (`default`, `append`, `shift`, `flussonic`), from the
+    /// playlist's `catchup` attribute. Xtream channels leave it empty: their archive URL is always the same shape.
+    public var catchupMode: String?
+    /// The M3U `catchup-source` template the mode fills in.
+    public var catchupSource: String?
     public var userAgent: String?
     public var referrer: String?
     public var sortIndex: Int
@@ -43,6 +48,8 @@ public struct Channel: Codable, Sendable, Hashable, Identifiable {
         epgOverride: String? = nil,
         guideID: String? = nil,
         catchupDays: Int? = nil,
+        catchupMode: String? = nil,
+        catchupSource: String? = nil,
         userAgent: String? = nil,
         referrer: String? = nil,
         sortIndex: Int
@@ -60,6 +67,8 @@ public struct Channel: Codable, Sendable, Hashable, Identifiable {
         self.epgOverride = epgOverride
         self.guideID = guideID
         self.catchupDays = catchupDays
+        self.catchupMode = catchupMode
+        self.catchupSource = catchupSource
         self.userAgent = userAgent
         self.referrer = referrer
         self.sortIndex = sortIndex

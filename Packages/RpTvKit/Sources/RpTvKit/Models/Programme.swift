@@ -57,3 +57,20 @@ public struct NowNext: Sendable, Hashable {
         self.next = next
     }
 }
+
+/// What the guide grid draws for a programme. The rest loads when it's opened.
+public struct GuideSlot: Sendable, Hashable, Identifiable {
+    public var id: Int64
+    public var start: Date
+    public var stop: Date?
+    public var title: String
+    public var category: String?
+
+    public init(id: Int64, start: Date, stop: Date?, title: String, category: String? = nil) {
+        self.id = id
+        self.start = start
+        self.stop = stop
+        self.title = title
+        self.category = category
+    }
+}

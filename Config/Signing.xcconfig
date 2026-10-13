@@ -1,0 +1,7 @@
+// Signing for the app and UI test targets (see project.yml). Put your Apple Developer team ID in
+// Config/Local.xcconfig, which isn't checked in and survives `xcodegen generate`:
+//
+//     DEVELOPMENT_TEAM = ABCDE12345
+
+DEVELOPMENT_TEAM =
+#include? "Local.xcconfig"

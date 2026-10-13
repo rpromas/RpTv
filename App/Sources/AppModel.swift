@@ -15,6 +15,8 @@ final class AppModel {
     let syncService: SourceSyncService
     let epgSyncService: EPGSyncService
     let resolver: PlaybackResolver
+    /// Programme reminders from the guide.
+    let reminders = Reminders()
     /// Set when the on-disk database couldn't be opened and the app fell back to memory.
     let startupError: String?
 
@@ -48,6 +50,9 @@ final class AppModel {
         self.resolver = PlaybackResolver(credentials: credentials)
         self.startupError = startupError
         self.activeSourceID = (UserDefaults.standard.object(forKey: Self.activeSourceKey) as? NSNumber)?.int64Value
+        reminders.onOpen = { [weak self] sourceID, stableKey in
+            Task { await self?.openChannel(sourceID: sourceID, stableKey: stableKey) }
+        }
     }
 
     /// The model the app runs with, backed by Application Support and the keychain.
@@ -245,14 +250,22 @@ final class AppModel {
     // MARK: - Playback
 
     /// Opens the player on `channel`. `context` is the list it was picked from, which the player zaps through.
-    func play(_ channel: Channel, in context: ChannelListContext?) {
+    /// With `catchup`, plays that programme from the channel's archive instead of the live stream.
+    func play(_ channel: Channel, in context: ChannelListContext?, catchup: Programme? = nil) {
         guard let source = sources.first(where: { $0.id == channel.sourceID }) else { return }
         do {
-            playerSession = try PlayerSession(channel: channel, source: source, context: context, database: database,
-                                              resolver: resolver)
+            playerSession = try PlayerSession(channel: channel, source: source, context: context, catchup: catchup,
+                                              database: database, resolver: resolver)
         } catch {
             alertMessage = error.localizedDescription
         }
+    }
+
+    /// Plays a channel a reminder points at, zapping through all of its source's channels.
+    private func openChannel(sourceID: Int64, stableKey: String) async {
+        guard let channel = try? await database.channel(sourceID: sourceID, stableKey: stableKey) else { return }
+        playerSession = nil
+        play(channel, in: ChannelListContext(sourceID: sourceID, categoryID: nil, title: "All Channels"))
     }
 }
 

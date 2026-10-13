@@ -32,7 +32,7 @@ struct ChannelRow: View {
                 }
             }
             Spacer(minLength: 0)
-            if channel.catchupDays != nil {
+            if channel.canCatchUp {
                 Image(systemName: "clock.arrow.circlepath")
                     .foregroundStyle(.secondary)
                     .accessibilityLabel("Catch-up available")
@@ -56,17 +56,9 @@ private struct GuideLines: View {
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
             if let progress = current.progress(at: now) {
-                Capsule()
-                    .fill(.quaternary)
-                    .overlay {
-                        Capsule()
-                            .fill(.tint)
-                            .scaleEffect(x: progress, anchor: .leading)
-                    }
+                ProgrammeProgressBar(progress: progress)
                     .frame(maxWidth: 160)
-                    .frame(height: 3)
                     .padding(.vertical, 1)
-                    .accessibilityHidden(true)
             }
         }
         if let next = nowNext.next {
@@ -83,6 +75,23 @@ private struct GuideLines: View {
         let start = programme.start.formatted(time)
         guard let stop = programme.stop else { return start }
         return "\(start)–\(stop.formatted(time))"
+    }
+}
+
+/// How far into a programme we are, as a thin capsule.
+struct ProgrammeProgressBar: View {
+    let progress: Double
+
+    var body: some View {
+        Capsule()
+            .fill(.quaternary)
+            .overlay {
+                Capsule()
+                    .fill(.tint)
+                    .scaleEffect(x: progress, anchor: .leading)
+            }
+            .frame(height: 3)
+            .accessibilityHidden(true)
     }
 }
 

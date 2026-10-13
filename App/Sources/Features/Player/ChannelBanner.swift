@@ -7,11 +7,10 @@ import SwiftUI
 
 /// Briefly shows which channel the player just switched to, like a TV's on-screen display.
 struct ChannelBanner: View {
-    let channel: Channel
-    let position: String?
+    let session: PlayerSession
 
     var body: some View {
-        ChannelTitle(channel: channel, subtitle: position)
+        NowPlayingTitle(session: session, fallback: session.zapList.positionLabel)
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
             .glassEffect(.regular, in: .rect(cornerRadius: 20))

@@ -12,6 +12,8 @@ struct GuideMatcher {
         var epgChannelID: String?
         var epgOverride: String? = nil
         var name: String
+        /// Days of past programmes to keep for the guide channel this matches.
+        var retentionDays = 1
     }
 
     /// Lowercased id → the guide's own spelling of it.
@@ -55,32 +57,38 @@ struct GuideMatcher {
 }
 
 /// Decides, while a guide streams in, which programmes are worth storing: those of guide channels
-/// some playlist channel matches. Ids the playlist names directly are known up front; name matches
-/// are added as the guide's `<channel>` elements arrive.
+/// some playlist channel matches, and how many days of their past to keep. Ids the playlist names
+/// directly are known up front; name matches are added as the guide's `<channel>` elements arrive.
 struct GuideWantedSet {
-    private var wanted: Set<String> = []
-    /// Normalized names of playlist channels that aren't matched by id.
-    private var pendingNames: Set<String> = []
+    /// Lowercased guide id → days of past programmes to keep.
+    private var wanted: [String: Int] = [:]
+    /// Normalized names of playlist channels that aren't matched by id → days to keep.
+    private var pendingNames: [String: Int] = [:]
 
     init(targets: [GuideMatcher.Target]) {
         for target in targets {
             if let override = target.epgOverride {
-                wanted.insert(override.lowercased())
+                keep(override, days: target.retentionDays)
             } else {
-                if let id = target.epgChannelID { wanted.insert(id.lowercased()) }
-                pendingNames.insert(GuideMatcher.normalize(target.name))
+                if let id = target.epgChannelID { keep(id, days: target.retentionDays) }
+                let name = GuideMatcher.normalize(target.name)
+                if !name.isEmpty { pendingNames[name] = max(pendingNames[name] ?? 0, target.retentionDays) }
             }
         }
-        pendingNames.remove("")
     }
 
     mutating func add(_ channel: XMLTVChannel) {
-        if channel.displayNames.contains(where: { pendingNames.contains(GuideMatcher.normalize($0)) }) {
-            wanted.insert(channel.id.lowercased())
+        for name in channel.displayNames {
+            if let days = pendingNames[GuideMatcher.normalize(name)] { keep(channel.id, days: days) }
         }
     }
 
-    func contains(_ id: String) -> Bool {
-        wanted.contains(id.lowercased())
+    /// Days of past programmes to keep for guide channel `id`, or nil when no playlist channel wants it.
+    func retentionDays(for id: String) -> Int? {
+        wanted[id.lowercased()]
+    }
+
+    private mutating func keep(_ id: String, days: Int) {
+        wanted[id.lowercased()] = max(wanted[id.lowercased()] ?? 0, days)
     }
 }

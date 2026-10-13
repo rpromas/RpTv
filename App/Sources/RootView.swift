@@ -46,6 +46,9 @@ struct MainTabView: View {
             Tab("Live TV", systemImage: "tv") {
                 LiveTVView()
             }
+            Tab("Guide", systemImage: "list.bullet.rectangle") {
+                GuideView()
+            }
             Tab("Settings", systemImage: "gearshape") {
                 SettingsView()
             }

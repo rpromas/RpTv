@@ -126,6 +126,16 @@ public final class AppDatabase: Sendable {
                           columns: ["sourceID", "epgChannelID", "start"])
         }
 
+        migrator.registerMigration("v4") { db in
+            try db.alter(table: Source.databaseTableName) { t in
+                t.add(column: "serverTimeZone", .text)
+            }
+            try db.alter(table: Channel.databaseTableName) { t in
+                t.add(column: "catchupMode", .text)
+                t.add(column: "catchupSource", .text)
+            }
+        }
+
         return migrator
     }
 }

@@ -28,6 +28,9 @@ public struct Source: Codable, Sendable, Hashable, Identifiable {
     public var referrer: String?
     /// Container used for Xtream live streams (`m3u8` or `ts`).
     public var liveFormat: String?
+    /// The Xtream server's time zone identifier (`server_info.timezone`), refreshed on every sync.
+    /// Catch-up URLs give the programme's start in this zone.
+    public var serverTimeZone: String?
     /// Which player engine plays this source's streams.
     public var enginePreference: EnginePreference
     public var createdAt: Date
@@ -48,6 +51,7 @@ public struct Source: Codable, Sendable, Hashable, Identifiable {
         userAgent: String? = nil,
         referrer: String? = nil,
         liveFormat: String? = nil,
+        serverTimeZone: String? = nil,
         enginePreference: EnginePreference = .automatic,
         createdAt: Date = .now,
         lastSyncedAt: Date? = nil,
@@ -66,6 +70,7 @@ public struct Source: Codable, Sendable, Hashable, Identifiable {
         self.userAgent = userAgent
         self.referrer = referrer
         self.liveFormat = liveFormat
+        self.serverTimeZone = serverTimeZone
         self.enginePreference = enginePreference
         self.createdAt = createdAt
         self.lastSyncedAt = lastSyncedAt

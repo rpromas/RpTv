@@ -16,3 +16,6 @@ Package.resolved
 
 # macOS
 .DS_Store
+
+# Personal signing settings (team ID), included by Config/Signing.xcconfig
+Config/Local.xcconfig

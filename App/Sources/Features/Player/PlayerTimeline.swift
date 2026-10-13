@@ -22,6 +22,20 @@ struct LiveBadge: View {
     }
 }
 
+/// Shown instead of a scrubber for a programme playing from the archive whose length the player doesn't know.
+struct CatchupBadge: View {
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "clock.arrow.circlepath")
+                .font(.caption.weight(.bold))
+            Text("CATCH-UP")
+                .font(.caption.weight(.bold))
+                .tracking(0.6)
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
+
 /// Elapsed time, a seek slider and remaining time. Seeks when the drag ends.
 struct Scrubber: View {
     let engine: any PlayerEngine

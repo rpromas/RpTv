@@ -43,7 +43,7 @@ struct PlayerTopBar: View {
         HStack(spacing: 12) {
             PlayerIconButton(title: "Close", systemImage: "xmark", action: onClose)
             if showsTitle {
-                ChannelTitle(channel: session.channel, subtitle: session.context?.title)
+                NowPlayingTitle(session: session, fallback: session.context?.title)
                     .shadow(color: .black.opacity(0.4), radius: 6)
             }
             Spacer(minLength: 8)
@@ -62,10 +62,11 @@ struct PlayerTopBar: View {
     }
 }
 
-/// Logo, number and name, with a second line underneath.
+/// Logo, number and name, with a second line underneath and, for a programme on air, how far into it we are.
 struct ChannelTitle: View {
     let channel: Channel
     let subtitle: String?
+    var progress: Double?
     var logoSize = CGSize(width: 48, height: 34)
 
     var body: some View {
@@ -80,8 +81,36 @@ struct ChannelTitle: View {
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
+                if let progress {
+                    ProgrammeProgressBar(progress: progress)
+                        .frame(width: 120)
+                        .padding(.top, 2)
+                }
             }
             .lineLimit(1)
+        }
+    }
+}
+
+/// The playing channel's title with what's on: the programme playing from the archive, or the one on air now
+/// with its progress. `fallback` is the second line when the guide has nothing.
+struct NowPlayingTitle: View {
+    let session: PlayerSession
+    let fallback: String?
+    var logoSize = CGSize(width: 48, height: 34)
+
+    var body: some View {
+        if let programme = session.catchupProgramme {
+            ChannelTitle(channel: session.channel,
+                         subtitle: "\(programme.title) · \(programme.start.formatted(.dateTime.weekday().hour().minute()))",
+                         logoSize: logoSize)
+        } else {
+            let channelIDs = session.channel.id.map { [$0] } ?? []
+            NowNextReader(database: session.database, channelIDs: channelIDs) { nowNext, now in
+                let current = session.channel.id.flatMap { nowNext[$0]?.now }
+                ChannelTitle(channel: session.channel, subtitle: current?.title ?? fallback,
+                             progress: current?.progress(at: now), logoSize: logoSize)
+            }
         }
     }
 }
@@ -173,9 +202,18 @@ struct PlayerBottomBar: View {
             if let engine = session.coordinator.engine, let duration = engine.duration {
                 Scrubber(engine: engine, duration: duration)
                 SpeedMenu(engine: engine)
+            } else if session.catchupProgramme != nil {
+                CatchupBadge()
+                Spacer(minLength: 0)
             } else {
                 LiveBadge(isPaused: session.coordinator.state == .paused)
                 Spacer(minLength: 0)
+            }
+            if session.catchupProgramme != nil {
+                Button("Go Live", systemImage: "dot.radiowaves.left.and.right") { session.goLive() }
+                    .font(.caption.weight(.semibold))
+                    .labelStyle(.titleAndIcon)
+                    .accessibilityIdentifier("goLiveButton")
             }
             if compact, let engine = session.coordinator.engine {
                 AspectButton(engine: engine, glass: false)

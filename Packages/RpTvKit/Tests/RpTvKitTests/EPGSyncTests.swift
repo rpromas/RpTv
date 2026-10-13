@@ -147,6 +147,61 @@ struct EPGSyncTests {
         #expect(try await firstValue(database.observeNowNext(channelIDs: [], at: now)).isEmpty)
     }
 
+    @Test func observesGuideSlotsInAWindow() async throws {
+        let source = try await syncedM3USource()
+        try await service(StubDownloader()).sync(source, now: now)
+        let nine = Date(timeIntervalSince1970: 1_791_968_400) // 09:00 UTC
+
+        let slots = try await firstValue(database.observeGuide(
+            sourceID: source.id!, guideIDs: ["news.one", "Sport.Two"],
+            window: DateInterval(start: nine, duration: 3600)))
+        #expect(slots.keys.sorted() == ["Sport.Two", "news.one"])
+        // Programmes that only touch the window's edges are left out.
+        #expect(slots["news.one"]?.map(\.title) == ["Midday Report"])
+        #expect(slots["Sport.Two"]?.map(\.title) == ["Match of the Day", "Late Highlights"])
+        #expect(slots["Sport.Two"]?.last?.stop == nil)
+
+        let id = try #require(slots["news.one"]?.first?.id)
+        #expect(try await database.programme(id: id)?.title == "Midday Report")
+        #expect(try await firstValue(database.observeGuide(sourceID: source.id!, guideIDs: [],
+                                                           window: DateInterval(start: nine, duration: 3600))).isEmpty)
+    }
+
+    @Test func observesGuideRange() async throws {
+        let source = try await syncedM3USource()
+        try await service(StubDownloader()).sync(source, now: now)
+        let range = try await firstValue(database.observeGuideRange(sourceID: source.id!, guideIDs: ["news.one", "Sport.Two"]))
+        #expect(range?.start == Date(timeIntervalSince1970: 1_791_963_000)) // Match of the Day, 07:30
+        #expect(range?.end == Date(timeIntervalSince1970: 1_791_982_800)) // Evening News ends 13:00
+        #expect(try await firstValue(database.observeGuideRange(sourceID: source.id!, guideIDs: ["nothing"])) == nil)
+    }
+
+    @Test func keepsPastProgrammesForCatchupChannels() async throws {
+        let source = try await database.insertSource(Source(name: "Custom", kind: .m3u, location: "http://example.com/list.m3u",
+                                                            epgURL: "http://epg.example.com/guide.xml"))
+        func importGuide(catchupDays: Int?) async throws -> [String] {
+            let catalog = LiveCatalog(groups: [], items: [
+                LiveCatalog.Item(channel: Channel(sourceID: 0, stableKey: "news", name: "News", epgChannelID: "news.one",
+                                                  catchupDays: catchupDays, catchupMode: "shift", sortIndex: 0),
+                                 groupRemoteID: nil),
+            ])
+            try await database.replaceLiveCatalog(sourceID: source.id!, with: catalog)
+            try await service(StubDownloader()).sync(source, now: now)
+            return try await programmes(source.id!).map(\.title)
+        }
+        // Old News ended 24.5 hours before `now`.
+        #expect(try await !importGuide(catchupDays: nil).contains("Old News"))
+        #expect(try await importGuide(catchupDays: 2).contains("Old News"))
+        #expect(try await importGuide(catchupDays: 30).count == 5)
+    }
+
+    @Test func findsChannelsByStableKey() async throws {
+        let source = try await syncedM3USource()
+        let channel = try await database.channel(sourceID: source.id!, stableKey: "m3u:news.one|News One HD|News")
+        #expect(channel?.name == "News One HD")
+        #expect(try await database.channel(sourceID: source.id!, stableKey: "missing") == nil)
+    }
+
     @Test func catalogResyncKeepsMatchesAndOverrides() async throws {
         let source = try await syncedM3USource()
         let epg = service(StubDownloader())

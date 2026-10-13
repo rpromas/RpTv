@@ -133,7 +133,7 @@ struct PlayerScreen: View {
             }
 
             if chrome.showsChannelBanner {
-                ChannelBanner(channel: session.channel, position: session.zapList.positionLabel)
+                ChannelBanner(session: session)
                     .scaleEffect(docked ? 0.85 : 1, anchor: .topLeading)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     .padding(insets)
@@ -201,8 +201,8 @@ struct PlayerScreen: View {
     private func dockedChannels(bottomInset: CGFloat) -> some View {
         VStack(spacing: 0) {
             HStack {
-                ChannelTitle(channel: session.channel, subtitle: session.context?.title,
-                             logoSize: CGSize(width: 56, height: 40))
+                NowPlayingTitle(session: session, fallback: session.context?.title,
+                                logoSize: CGSize(width: 56, height: 40))
                 Spacer(minLength: 8)
                 if let position = session.zapList.positionLabel {
                     Text(position)

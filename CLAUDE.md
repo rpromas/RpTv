@@ -17,7 +17,7 @@ swift test --package-path Packages/FFmpeg            # checks the FFmpeg build (
 swift test --package-path Packages/StreamBridge      # the AirPlay bridge: FFmpeg pipeline on synthetic fixtures, HLS server
 xcodebuild -project RpTv.xcodeproj -scheme RpTv -destination 'platform=iOS Simulator,name=iPhone 17' build
 ```
-The UI test (`UITests/`) skips unless `TEST_RUNNER_RPTV_PLAYLIST_URL` points to a served copy of `Support/demo-playlist.m3u`. See README.
+The UI tests (`UITests/`) skip unless `TEST_RUNNER_RPTV_PLAYLIST_URL` points to a served copy of `Support/demo-playlist.m3u`, and (for `GuideUITests`) `TEST_RUNNER_RPTV_GUIDE_PLAYLIST_URL` to the output of `Scripts/make-demo-guide.py`. See README.
 
 ## Architecture
 
@@ -27,6 +27,8 @@ The UI test (`UITests/`) skips unless `TEST_RUNNER_RPTV_PLAYLIST_URL` points to 
 - A sync (`SourceSyncService`) replaces a source's live catalog in one transaction (`replaceLiveCatalog`). `stableKey` identifies channels across resyncs.
 - **Credentials never go in SQLite.** Xtream passwords live in the keychain (`CredentialStore`). Xtream stream URLs are built at play time by `PlaybackResolver`.
 - **TV guide:** `EPGSyncService` downloads XMLTV to a temp file, inflates gzip (`GzipInflater`), and `AppDatabase.importGuide` streams it (`XMLTVParser`) into `epgChannel`/`programme` in one transaction. Only programmes of guide channels that some channel matches are stored. `channel.guideID` holds the match (`GuideMatcher`: `epgOverride`, then `epgChannelID`, then normalized name). Both the catalog sync and the guide import re-resolve it. It refreshes apart from the catalog sync (12 h staleness). Rows get now/next from `observeNowNext`, one query per list (`NowNextReader`).
+- **Guide grid** (`App/Sources/Features/Guide/`): one 2D `ScrollView` whose `LazyVStack` pins the time ruler as a section header; the channel column is pinned with `visualEffect` offsets, so scrolling never updates state. The timeline spans the whole stored guide (`observeGuideRange`), but slots load only for a window around the viewport (`observeGuide` with `GuideTimeScale.loadWindow`, re-subscribed when the 6-hour bucket changes). Time ↔ x math lives in `GuideTimeScale` (RpTvKit, unit tested). The import keeps past programmes as many days as matched channels' `catchupDays` (max 7, at least 1).
+- **Catch-up:** `PlaybackResolver.catchupItem` builds a non-live item. Xtream uses `XtreamCredentials.timeshiftURL` in `source.serverTimeZone` (refreshed every sync). M3U uses `Catchup.m3uURL` with the channel's `catchupMode`/`catchupSource` (Kodi IPTV Simple conventions). `Channel.isCatchupPlayable` decides what's watchable. Reminders are local notifications (`Reminders`); the pending requests are the only record.
 - Xtream JSON is inconsistent between servers. Decode with the `lossy*` helpers in `Support/LossyDecoding.swift`.
 - Playback goes through the `PlayerEngine` protocol. `PlaybackCoordinator` (in RpTvKit) picks the first engine (the source's `enginePreference`, then the engine that last worked for that item, then `EngineSelector` on the URL). It switches from AVPlayer to VLC when AVPlayer fails, or when a live stream hasn't started after 10 s. `PlayerScreen` renders whichever engine is active.
 - `VLCPlayerEngine` lives in the **app target** (`App/Sources/Features/Player/`), not RpTvKit, so `swift test` never downloads or links VLCKit. Keep VLCKit imports out of the package.

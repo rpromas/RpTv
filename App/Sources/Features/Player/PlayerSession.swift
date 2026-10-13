@@ -21,6 +21,8 @@ final class PlayerSession: Identifiable {
     let coordinator: PlaybackCoordinator
     let context: ChannelListContext?
     private(set) var channel: Channel
+    /// The programme playing from the archive, or nil when the channel is playing live.
+    private(set) var catchupProgramme: Programme?
     private(set) var zapList: ZapList
     /// Goes up on every zap, so the screen can show the channel banner.
     private(set) var zapCount = 0
@@ -31,10 +33,12 @@ final class PlayerSession: Identifiable {
     @ObservationIgnored private let resolver: PlaybackResolver
     @ObservationIgnored private let firstItem: PlaybackItem
 
-    init(channel: Channel, source: Source, context: ChannelListContext?, database: AppDatabase,
-         resolver: PlaybackResolver) throws {
-        self.firstItem = try resolver.item(for: channel, in: source)
+    init(channel: Channel, source: Source, context: ChannelListContext?, catchup: Programme? = nil,
+         database: AppDatabase, resolver: PlaybackResolver) throws {
+        self.firstItem = try catchup.map { try resolver.catchupItem(for: channel, programme: $0, in: source) }
+            ?? resolver.item(for: channel, in: source)
         self.channel = channel
+        self.catchupProgramme = catchup
         self.source = source
         self.context = context
         self.database = database
@@ -63,17 +67,24 @@ final class PlayerSession: Identifiable {
         if let next = zapList.neighbor(offset) { zap(to: next) }
     }
 
+    /// Plays `channel` live. Picking the channel that's playing from the archive goes back to live.
     func zap(to channel: Channel) {
-        guard channel.stableKey != self.channel.stableKey else { return }
+        guard channel.stableKey != self.channel.stableKey || catchupProgramme != nil else { return }
         do {
             let item = try resolver.item(for: channel, in: source)
             self.channel = channel
+            catchupProgramme = nil
             zapList.select(channel.stableKey)
             coordinator.play(item)
             zapCount += 1
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+
+    /// Leaves the archive for the live stream of the same channel.
+    func goLive() {
+        zap(to: channel)
     }
 
     /// Keeps ``zapList`` in step with the catalog. Runs while the player is on screen.

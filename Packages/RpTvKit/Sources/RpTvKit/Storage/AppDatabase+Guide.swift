@@ -8,12 +8,14 @@ import GRDB
 // MARK: - Writes
 
 extension AppDatabase {
-    /// Programmes that ended longer ago than this are dropped on import.
-    static let guideRetention: TimeInterval = 24 * 3600
+    /// Programmes that ended over a day ago are dropped on import, unless a channel matched to their
+    /// guide channel has a catch-up archive: then they're kept as many days as it reaches back, up to this.
+    static let maxGuideRetentionDays = 7
 
     /// Replaces a source's guide with the XMLTV file at `file`, in one transaction: if parsing fails,
     /// the previous guide stays. Only programmes of guide channels that some channel of the source
-    /// matches are stored. Returns how many programmes were stored.
+    /// matches are stored, and only as far back as those channels' catch-up reaches (at least a day).
+    /// Returns how many programmes were stored.
     @discardableResult
     public func importGuide(sourceID: Int64, file: URL, now: Date = .now) async throws -> Int {
         try await writer.write { db in
@@ -30,14 +32,15 @@ extension AppDatabase {
                 INSERT INTO programme (sourceID, epgChannelID, start, stop, title, summary, category, iconURL)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """)
-            let cutoff = now.addingTimeInterval(-Self.guideRetention)
             var count = 0
             // Programmes are stored under the channel id as the guide declares it, whatever its case.
             var declaredIDs: [String: String] = [:]
             // Guides list a channel's programmes together, so remember the last lookup.
             var lastChannel: String?
             var lastID = ""
-            var lastWanted = false
+            var lastCutoff: Date?
+            /// Declared id → days kept, for the clean-up below.
+            var keptDays: [String: Int] = [:]
 
             try XMLTVParser.parse(file) { channel in
                 wanted.add(channel)
@@ -51,10 +54,12 @@ extension AppDatabase {
                 if programme.channel != lastChannel {
                     lastChannel = programme.channel
                     lastID = declaredIDs[programme.channel.lowercased()] ?? programme.channel
-                    lastWanted = wanted.contains(programme.channel)
+                    let days = wanted.retentionDays(for: programme.channel)
+                    lastCutoff = days.map { now.addingTimeInterval(-Double($0) * 86_400) }
+                    if let days { keptDays[lastID] = days }
                 }
-                guard lastWanted else { return }
-                if let stop = programme.stop, stop < cutoff { return }
+                guard let lastCutoff else { return }
+                if let stop = programme.stop, stop < lastCutoff { return }
                 try insertProgramme.execute(arguments: [
                     sourceID, lastID, Int64(programme.start.timeIntervalSince1970),
                     programme.stop.map { Int64($0.timeIntervalSince1970) },
@@ -71,9 +76,14 @@ extension AppDatabase {
                       AND next.start > programme.start)
                 WHERE sourceID = ? AND stop IS NULL
                 """, arguments: [sourceID])
-            try db.execute(sql: "DELETE FROM programme WHERE sourceID = ? AND stop < ?",
-                           arguments: [sourceID, Int64(cutoff.timeIntervalSince1970)])
-            count -= db.changesCount
+            for (days, ids) in Dictionary(grouping: keptDays.keys, by: { keptDays[$0]! }) {
+                let cutoff = Int64(now.timeIntervalSince1970) - Int64(days) * 86_400
+                try db.execute(sql: """
+                    DELETE FROM programme
+                    WHERE sourceID = ? AND stop < ? AND epgChannelID IN (SELECT value FROM json_each(?))
+                    """, arguments: [sourceID, cutoff, Self.jsonArray(ids)])
+                count -= db.changesCount
+            }
 
             try Self.resolveGuideIDs(db, sourceID: sourceID)
             return count
@@ -105,10 +115,18 @@ extension AppDatabase {
     }
 
     private static func matchTargets(_ db: Database, sourceID: Int64) throws -> [(id: Int64, target: GuideMatcher.Target, guideID: String?)] {
-        try Row.fetchAll(db, sql: "SELECT id, epgChannelID, epgOverride, name, guideID FROM channel WHERE sourceID = ?",
+        try Row.fetchAll(db, sql: "SELECT id, epgChannelID, epgOverride, name, catchupDays, guideID FROM channel WHERE sourceID = ?",
                          arguments: [sourceID]).map { row in
-            (row["id"], GuideMatcher.Target(epgChannelID: row["epgChannelID"], epgOverride: row["epgOverride"], name: row["name"]), row["guideID"])
+            let catchupDays: Int? = row["catchupDays"]
+            let target = GuideMatcher.Target(epgChannelID: row["epgChannelID"], epgOverride: row["epgOverride"], name: row["name"],
+                                             retentionDays: min(max(catchupDays ?? 1, 1), maxGuideRetentionDays))
+            return (row["id"], target, row["guideID"])
         }
+    }
+
+    /// `strings` as a JSON array, for `json_each`.
+    static func jsonArray(_ strings: some Sequence<String>) -> String {
+        String(decoding: try! JSONEncoder().encode(Array(strings)), as: UTF8.self)
     }
 }
 
@@ -150,6 +168,64 @@ extension AppDatabase {
                 result[channelID] = entry
             }
             return result
+        }
+    }
+}
+
+extension AppDatabase {
+    /// The guide grid's programmes for the guide channels `guideIDs` that overlap `window`, keyed by guide id
+    /// and ordered by start. Only what a grid cell shows is loaded; ``programme(id:)`` has the rest.
+    public func observeGuide(sourceID: Int64, guideIDs: Set<String>, window: DateInterval)
+        -> AsyncThrowingStream<[String: [GuideSlot]], Error> {
+        let ids = Self.jsonArray(guideIDs)
+        let from = Int64(window.start.timeIntervalSince1970)
+        let to = Int64(window.end.timeIntervalSince1970)
+        return observe { db in
+            guard !guideIDs.isEmpty else { return [:] }
+            let rows = try Row.fetchCursor(db, sql: """
+                SELECT id, epgChannelID, start, stop, title, category FROM programme
+                WHERE sourceID = ? AND epgChannelID IN (SELECT value FROM json_each(?))
+                  AND start < ? AND COALESCE(stop, start + 3600) > ?
+                ORDER BY epgChannelID, start
+                """, arguments: [sourceID, ids, to, from])
+            var result: [String: [GuideSlot]] = [:]
+            while let row = try rows.next() {
+                let stop: Int64? = row["stop"]
+                result[row["epgChannelID"] as String, default: []].append(GuideSlot(
+                    id: row["id"],
+                    start: Date(timeIntervalSince1970: TimeInterval(row["start"] as Int64)),
+                    stop: stop.map { Date(timeIntervalSince1970: TimeInterval($0)) },
+                    title: row["title"],
+                    category: row["category"]))
+            }
+            return result
+        }
+    }
+
+    /// From the earliest start to the latest end of the programmes of `guideIDs`, or nil when there are none.
+    /// A programme with no known end counts as lasting an hour.
+    public func observeGuideRange(sourceID: Int64, guideIDs: Set<String>) -> AsyncThrowingStream<DateInterval?, Error> {
+        let ids = Self.jsonArray(guideIDs)
+        return observe { db in
+            guard !guideIDs.isEmpty,
+                  let row = try Row.fetchOne(db, sql: """
+                      SELECT MIN(start) AS first, MAX(COALESCE(stop, start + 3600)) AS last FROM programme
+                      WHERE sourceID = ? AND epgChannelID IN (SELECT value FROM json_each(?))
+                      """, arguments: [sourceID, ids]),
+                  let first = row["first"] as Int64?, let last = row["last"] as Int64?
+            else { return nil }
+            return DateInterval(start: Date(timeIntervalSince1970: TimeInterval(first)),
+                                end: Date(timeIntervalSince1970: TimeInterval(max(last, first))))
+        }
+    }
+
+    public func programme(id: Int64) async throws -> Programme? {
+        try await reader.read { db in try Programme.fetchOne(db, key: id) }
+    }
+
+    public func channel(sourceID: Int64, stableKey: String) async throws -> Channel? {
+        try await reader.read { db in
+            try Channel.filter(Column("sourceID") == sourceID && Column("stableKey") == stableKey).fetchOne(db)
         }
     }
 }

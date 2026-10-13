@@ -38,6 +38,9 @@ struct CatalogSyncTests {
         let sports = try await firstValue(database.observeChannels(sourceID: source.id!, categoryID: categories[1].id))
         #expect(sports.map(\.name) == ["Sport 2, Extra"])
         #expect(sports[0].userAgent == "CustomAgent/1.0")
+        #expect(sports[0].catchupMode == "shift")
+        #expect(sports[0].catchupDays == 3)
+        #expect(sports[0].canCatchUp)
 
         let updated = try await database.source(id: source.id!)
         #expect(updated?.lastSyncedAt != nil)
@@ -83,6 +86,7 @@ struct CatalogSyncTests {
 
         let saved = try #require(try await database.source(id: source.id!))
         #expect(saved.liveFormat == "m3u8")
+        #expect(saved.serverTimeZone == "Europe/Vilnius")
 
         let channels = try await firstValue(database.observeChannels(sourceID: source.id!, categoryID: nil))
         #expect(channels.map(\.name) == ["News One", "Sport Two"])

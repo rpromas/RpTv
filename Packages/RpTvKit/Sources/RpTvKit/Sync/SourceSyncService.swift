@@ -129,10 +129,14 @@ public struct SourceSyncService: Sendable {
         let client = XtreamClient(credentials: try xtreamCredentials(for: source), http: http, headers: source.httpHeaders)
         let account = try await client.authenticate()
 
-        if source.liveFormat == nil, var updated = try await database.source(id: source.id!) {
-            let formats = account.user.allowedOutputFormats
-            updated.liveFormat = formats.isEmpty || formats.contains("m3u8") ? "m3u8" : "ts"
-            try await database.updateSource(updated)
+        let formats = account.user.allowedOutputFormats
+        let timeZone = account.server?.timezone
+        try await database.modifySource(id: source.id!) { updated in
+            if updated.liveFormat == nil {
+                updated.liveFormat = formats.isEmpty || formats.contains("m3u8") ? "m3u8" : "ts"
+            }
+            // Catch-up URLs need it, and a server can move zones, so it's refreshed every time.
+            updated.serverTimeZone = timeZone
         }
 
         async let categories = client.liveCategories()
@@ -188,6 +192,8 @@ struct M3UCatalogBuilder {
             streamURL: entry.url,
             epgChannelID: entry.tvgID,
             catchupDays: entry.catchupDays,
+            catchupMode: entry.catchupMode,
+            catchupSource: entry.catchupSource,
             userAgent: entry.userAgent,
             referrer: entry.referrer,
             sortIndex: items.count

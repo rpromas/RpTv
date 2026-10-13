@@ -14,13 +14,27 @@ public struct M3UEntry: Sendable, Hashable {
     public var group: String?
     public var userAgent: String?
     public var referrer: String?
+    /// The `catchup` mode (lowercased), from the entry or else the `#EXTM3U` line.
+    public var catchupMode: String?
+    /// The `catchup-source` template, from the entry or else the `#EXTM3U` line.
+    public var catchupSource: String?
+    /// Days of archive (`catchup-days`, `tvg-rec` or `timeshift`), from the entry or else the `#EXTM3U` line.
+    /// A catch-up mode with no days given counts as a week.
+    public var catchupDays: Int?
 
     public var tvgID: String? { attributes["tvg-id"].nonEmpty }
     public var tvgName: String? { attributes["tvg-name"].nonEmpty }
     public var logo: String? { (attributes["tvg-logo"] ?? attributes["logo"]).nonEmpty }
     public var channelNumber: Int? { (attributes["tvg-chno"] ?? attributes["channel-number"]).flatMap { Int($0) } }
-    public var catchupDays: Int? {
+
+    static let defaultCatchupDays = 7
+
+    static func catchupDays(in attributes: [String: String]) -> Int? {
         (attributes["catchup-days"] ?? attributes["tvg-rec"] ?? attributes["timeshift"]).flatMap { Int($0) }
+    }
+
+    static func catchupMode(in attributes: [String: String]) -> String? {
+        (attributes["catchup"] ?? attributes["catchup-type"]).nonEmpty?.lowercased()
     }
 }
 
@@ -109,6 +123,8 @@ public struct M3UParser: Sendable {
         let name = pendingInfo?.title.nonEmpty
             ?? attributes["tvg-name"].nonEmpty
             ?? Self.fallbackName(for: url)
+        let catchupMode = M3UEntry.catchupMode(in: attributes) ?? M3UEntry.catchupMode(in: header.attributes)
+        let catchupDays = M3UEntry.catchupDays(in: attributes) ?? M3UEntry.catchupDays(in: header.attributes)
         return M3UEntry(
             name: name,
             url: url,
@@ -116,7 +132,10 @@ public struct M3UParser: Sendable {
             attributes: attributes,
             group: attributes["group-title"].nonEmpty ?? pendingGroup,
             userAgent: pendingUserAgent ?? attributes["http-user-agent"].nonEmpty,
-            referrer: pendingReferrer ?? attributes["http-referrer"].nonEmpty
+            referrer: pendingReferrer ?? attributes["http-referrer"].nonEmpty,
+            catchupMode: catchupMode,
+            catchupSource: attributes["catchup-source"].nonEmpty ?? header.attributes["catchup-source"].nonEmpty,
+            catchupDays: catchupDays ?? (catchupMode == nil ? nil : M3UEntry.defaultCatchupDays)
         )
     }
 

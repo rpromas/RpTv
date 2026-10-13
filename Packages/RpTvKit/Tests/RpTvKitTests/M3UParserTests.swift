@@ -42,6 +42,36 @@ struct M3UParserTests {
         #expect(entry.name == "Sport 2, Extra")
         #expect(entry.channelNumber == 7)
         #expect(entry.catchupDays == 3)
+        #expect(entry.catchupMode == "shift")
+        #expect(entry.catchupSource == nil)
+    }
+
+    @Test func readsCatchupFromEntryOrPlaylistHeader() {
+        let (_, entries) = M3UParser.parse("""
+            #EXTM3U catchup="append" catchup-source="?utc={utc}" catchup-days="5"
+            #EXTINF:-1,From Header
+            http://stream.example.com/a.m3u8
+            #EXTINF:-1 catchup="flussonic" catchup-days="2",Own Mode
+            http://stream.example.com/b/index.m3u8
+            #EXTINF:-1 catchup-type="Default" catchup-source="http://archive.example.com/{utc}",Own Source
+            http://stream.example.com/c.m3u8
+            """)
+        #expect(entries.map(\.catchupMode) == ["append", "flussonic", "default"])
+        #expect(entries.map(\.catchupSource) == ["?utc={utc}", "?utc={utc}", "http://archive.example.com/{utc}"])
+        #expect(entries.map(\.catchupDays) == [5, 2, 5])
+    }
+
+    @Test func catchupModeWithoutDaysMeansAWeek() {
+        let (_, entries) = M3UParser.parse("""
+            #EXTM3U
+            #EXTINF:-1 catchup="shift",Shifted
+            http://stream.example.com/a.m3u8
+            #EXTINF:-1,Plain
+            http://stream.example.com/b.m3u8
+            """)
+        #expect(entries[0].catchupDays == 7)
+        #expect(entries[1].catchupMode == nil)
+        #expect(entries[1].catchupDays == nil)
     }
 
     @Test func readsVLCOptionHeaders() throws {

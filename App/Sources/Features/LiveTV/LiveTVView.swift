@@ -120,7 +120,7 @@ struct ChannelListView: View {
     var body: some View {
         List(channels) { channel in
             Button {
-                model.play(channel)
+                model.play(channel, in: ChannelListContext(sourceID: sourceID, categoryID: categoryID, title: title))
             } label: {
                 ChannelRow(channel: channel)
             }

@@ -6,6 +6,9 @@ xcuserdata/
 DerivedData/
 build/
 
+# FFmpeg, built from the Vendor/FFmpeg submodule by Scripts/build-ffmpeg.sh
+Packages/FFmpeg/FFmpeg.xcframework/
+
 # SwiftPM
 .build/
 .swiftpm/

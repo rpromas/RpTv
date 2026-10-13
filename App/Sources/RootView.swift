@@ -22,8 +22,8 @@ struct RootView: View {
         .task(id: model.hasLoadedSources) {
             if model.hasLoadedSources { await model.refreshStaleSources() }
         }
-        .fullScreenCover(item: $model.nowPlaying) { item in
-            PlayerScreen(item: item)
+        .fullScreenCover(item: $model.playerSession) { session in
+            PlayerScreen(session: session)
         }
         .alert("Something went wrong", isPresented: .init(
             get: { model.alertMessage != nil },

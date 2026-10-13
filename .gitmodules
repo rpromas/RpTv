@@ -1,0 +1,4 @@
+[submodule "Vendor/FFmpeg"]
+	path = Vendor/FFmpeg
+	url = https://github.com/FFmpeg/FFmpeg.git
+	shallow = true

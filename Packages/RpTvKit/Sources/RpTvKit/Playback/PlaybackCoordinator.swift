@@ -34,6 +34,8 @@ public final class PlaybackCoordinator {
     /// The engine playing the current item. It changes when playback falls back to another engine.
     public private(set) var engine: (any PlayerEngine)?
     public private(set) var item: PlaybackItem?
+    /// Set while AirPlay is on: streams that would play on VLC go through the bridge instead, so the TV gets video.
+    public private(set) var prefersBridge = false
 
     public var state: PlaybackState { engine?.state ?? .idle }
 
@@ -63,10 +65,15 @@ public final class PlaybackCoordinator {
     }
 
     /// The engine to try first. A forced preference wins; otherwise the engine that last worked for this item,
-    /// otherwise a guess from the URL.
-    public static func initialEngine(for item: PlaybackItem, remembered: PlayerEngineKind?) -> PlayerEngineKind {
-        if item.enginePreference == .automatic, let remembered { return remembered }
-        return EngineSelector.engine(for: item.url, preference: item.enginePreference)
+    /// otherwise a guess from the URL. With `prefersBridge`, the bridge stands in for VLC.
+    public static func initialEngine(for item: PlaybackItem, remembered: PlayerEngineKind?,
+                                     prefersBridge: Bool = false) -> PlayerEngineKind {
+        guard item.enginePreference == .automatic else {
+            return EngineSelector.engine(for: item.url, preference: item.enginePreference)
+        }
+        let kind = remembered ?? EngineSelector.engine(for: item.url)
+        if kind == .vlc || kind == .bridge { return prefersBridge ? .bridge : .vlc }
+        return kind
     }
 
     public func play(_ item: PlaybackItem) {
@@ -74,7 +81,16 @@ public final class PlaybackCoordinator {
         self.item = item
         attempted = []
         let remembered = item.enginePreference == .automatic ? memory.engine(for: item.id) : nil
-        start(Self.initialEngine(for: item, remembered: remembered))
+        start(Self.initialEngine(for: item, remembered: remembered, prefersBridge: prefersBridge))
+    }
+
+    /// Call when AirPlay turns on or off. Turning it on moves a stream playing on VLC to the bridge.
+    public func setPrefersBridge(_ prefers: Bool) {
+        guard prefers != prefersBridge else { return }
+        prefersBridge = prefers
+        if prefers, engine?.kind == .vlc, let item, item.enginePreference == .automatic {
+            play(item)
+        }
     }
 
     /// Starts the current item again from its first engine.
@@ -104,8 +120,10 @@ public final class PlaybackCoordinator {
             }
         }
         if item.isLive, nextEngine != nil {
-            timeoutTask = Task { [weak self, liveStartTimeout] in
-                try? await Task.sleep(for: liveStartTimeout)
+            // The bridge needs a few seconds of converted segments before AVPlayer can start.
+            let timeout = kind == .bridge ? liveStartTimeout * 2 : liveStartTimeout
+            timeoutTask = Task { [weak self] in
+                try? await Task.sleep(for: timeout)
                 guard !Task.isCancelled, let self, engine === self.engine, !self.hasStarted else { return }
                 self.fallBack()
             }
@@ -118,7 +136,8 @@ public final class PlaybackCoordinator {
         case .playing where !hasStarted:
             hasStarted = true
             timeoutTask?.cancel()
-            if item.enginePreference == .automatic { memory.remember(engine.kind, for: item.id) }
+            // The bridge is VLC's stand-in for AirPlay: remember the stream as one AVPlayer can't open directly.
+            if item.enginePreference == .automatic { memory.remember(engine.kind == .bridge ? .vlc : engine.kind, for: item.id) }
         case .failed where !hasStarted:
             fallBack()
         default:
@@ -129,7 +148,8 @@ public final class PlaybackCoordinator {
     /// The engine to retry with, if the user lets the app choose and one is left to try.
     private var nextEngine: PlayerEngineKind? {
         guard item?.enginePreference == .automatic, let current = engine?.kind,
-              let next = EngineSelector.fallback(after: current), !attempted.contains(next) else { return nil }
+              let next = EngineSelector.fallback(after: current, prefersBridge: prefersBridge),
+              !attempted.contains(next) else { return nil }
         return next
     }
 

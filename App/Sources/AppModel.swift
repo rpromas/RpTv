@@ -21,7 +21,8 @@ final class AppModel {
     private(set) var hasLoadedSources = false
     /// Sources with a sync in progress, and how far along each is.
     private(set) var syncPhases: [Int64: SyncPhase] = [:]
-    var nowPlaying: PlaybackItem?
+    /// The player on screen, if any.
+    var playerSession: PlayerSession?
     /// A user-facing error to show in an alert.
     var alertMessage: String?
 
@@ -194,10 +195,12 @@ final class AppModel {
 
     // MARK: - Playback
 
-    func play(_ channel: Channel) {
+    /// Opens the player on `channel`. `context` is the list it was picked from, which the player zaps through.
+    func play(_ channel: Channel, in context: ChannelListContext?) {
         guard let source = sources.first(where: { $0.id == channel.sourceID }) else { return }
         do {
-            nowPlaying = try resolver.item(for: channel, in: source)
+            playerSession = try PlayerSession(channel: channel, source: source, context: context, database: database,
+                                              resolver: resolver)
         } catch {
             alertMessage = error.localizedDescription
         }

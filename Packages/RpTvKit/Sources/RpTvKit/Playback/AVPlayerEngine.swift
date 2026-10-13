@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import AVFoundation
+import AVKit
 import Observation
 
 /// AVPlayer-backed engine for HLS and progressive MP4.
@@ -11,18 +12,64 @@ import Observation
 public final class AVPlayerEngine: PlayerEngine {
     public let kind = PlayerEngineKind.native
     public let player = AVPlayer()
+    /// The layer to show video in. The engine owns it so Picture in Picture can outlive the player screen.
+    public let playerLayer: AVPlayerLayer
     public private(set) var state = PlaybackState.idle
     public private(set) var currentTime: TimeInterval = 0
     public private(set) var duration: TimeInterval?
+    public private(set) var audioTracks: [MediaTrack] = []
+    public private(set) var subtitleTracks: [MediaTrack] = []
+    public private(set) var supportsPictureInPicture = false
+    public private(set) var isPictureInPictureActive = false
+    /// True while AirPlay plays the video on another screen, which leaves ``playerLayer`` empty.
+    public private(set) var isExternalPlaybackActive = false
 
+    public var videoGravity = VideoGravity.fit {
+        didSet { playerLayer.videoGravity = Self.layerGravity(videoGravity) }
+    }
+
+    public var rate: Float = 1 {
+        didSet {
+            player.defaultRate = rate
+            if player.rate != 0 { player.rate = rate }
+        }
+    }
+
+    @ObservationIgnored private let pictureInPicture: AVPictureInPictureController?
+    @ObservationIgnored private var audioGroup: AVMediaSelectionGroup?
+    @ObservationIgnored private var subtitleGroup: AVMediaSelectionGroup?
+    @ObservationIgnored private var tracksTask: Task<Void, Never>?
     @ObservationIgnored private var observations: [NSKeyValueObservation] = []
     @ObservationIgnored private var timeObserver: Any?
     @ObservationIgnored private var itemObservations: [NSKeyValueObservation] = []
 
     public init() {
         player.automaticallyWaitsToMinimizeStalling = true
+        // Send video, not just sound, when the user picks an AirPlay screen.
+        player.allowsExternalPlayback = true
+        playerLayer = AVPlayerLayer(player: player)
+        playerLayer.videoGravity = .resizeAspect
+        pictureInPicture = AVPictureInPictureController.isPictureInPictureSupported()
+            ? AVPictureInPictureController(playerLayer: playerLayer) : nil
+        #if os(iOS)
+        pictureInPicture?.canStartPictureInPictureAutomaticallyFromInline = true
+        #endif
+        if let pictureInPicture {
+            observations.append(pictureInPicture.observe(\.isPictureInPicturePossible, options: .initial) { @Sendable [weak self] controller, _ in
+                let possible = controller.isPictureInPicturePossible
+                Task { @MainActor in self?.supportsPictureInPicture = possible }
+            })
+            observations.append(pictureInPicture.observe(\.isPictureInPictureActive) { @Sendable [weak self] controller, _ in
+                let active = controller.isPictureInPictureActive
+                Task { @MainActor in self?.isPictureInPictureActive = active }
+            })
+        }
         observations.append(player.observe(\.timeControlStatus) { @Sendable [weak self] _, _ in
             Task { @MainActor in self?.refreshState() }
+        })
+        observations.append(player.observe(\.isExternalPlaybackActive) { @Sendable [weak self] player, _ in
+            let active = player.isExternalPlaybackActive
+            Task { @MainActor in self?.isExternalPlaybackActive = active }
         })
         timeObserver = player.addPeriodicTimeObserver(forInterval: CMTime(value: 1, timescale: 2), queue: .main) { @Sendable [weak self] time in
             MainActor.assumeIsolated {
@@ -33,6 +80,7 @@ public final class AVPlayerEngine: PlayerEngine {
     }
 
     isolated deinit {
+        tracksTask?.cancel()
         if let timeObserver { player.removeTimeObserver(timeObserver) }
     }
 
@@ -62,6 +110,8 @@ public final class AVPlayerEngine: PlayerEngine {
         state = .loading
         currentTime = 0
         duration = nil
+        clearTracks()
+        tracksTask = Task { [weak self] in await self?.loadTracks(of: playerItem) }
         player.replaceCurrentItem(with: playerItem)
         if let start = item.startPosition, start > 0 {
             player.seek(to: CMTime(seconds: start, preferredTimescale: 600))
@@ -69,6 +119,7 @@ public final class AVPlayerEngine: PlayerEngine {
         player.play()
     }
 
+    // Starts at `defaultRate`, which follows `rate`.
     public func play() { player.play() }
 
     public func pause() { player.pause() }
@@ -78,10 +129,80 @@ public final class AVPlayerEngine: PlayerEngine {
     }
 
     public func stop() {
+        pictureInPicture?.stopPictureInPicture()
         player.pause()
         player.replaceCurrentItem(with: nil)
         itemObservations = []
+        clearTracks()
         state = .idle
+    }
+
+    public func select(track: MediaTrack) {
+        let group = track.kind == .audio ? audioGroup : subtitleGroup
+        guard let group, let item = player.currentItem,
+              let option = group.options.first(where: { Self.trackID($0, in: group) == track.id }) else { return }
+        item.select(option, in: group)
+        refreshTracks()
+    }
+
+    public func disableSubtitles() {
+        guard let subtitleGroup, let item = player.currentItem else { return }
+        item.select(nil, in: subtitleGroup)
+        refreshTracks()
+    }
+
+    public func startPictureInPicture() {
+        pictureInPicture?.startPictureInPicture()
+    }
+
+    // MARK: - Tracks
+
+    private func loadTracks(of item: AVPlayerItem) async {
+        let audio = try? await item.asset.loadMediaSelectionGroup(for: .audible)
+        let legible = try? await item.asset.loadMediaSelectionGroup(for: .legible)
+        guard !Task.isCancelled, player.currentItem === item else { return }
+        audioGroup = audio
+        subtitleGroup = legible
+        refreshTracks()
+    }
+
+    private func refreshTracks() {
+        guard let item = player.currentItem else { return clearTracks() }
+        let selection = item.currentMediaSelection
+        audioTracks = audioGroup.map { group in
+            group.options.map { option in
+                MediaTrack(id: Self.trackID(option, in: group), kind: .audio, name: option.displayName,
+                           isSelected: selection.selectedMediaOption(in: group) == option)
+            }
+        } ?? []
+        subtitleTracks = subtitleGroup.map { group in
+            // Forced subtitles show automatically with their audio track; they aren't a choice.
+            AVMediaSelectionGroup.mediaSelectionOptions(from: group.options, withoutMediaCharacteristics: [.containsOnlyForcedSubtitles])
+                .map { option in
+                    MediaTrack(id: Self.trackID(option, in: group), kind: .subtitle, name: option.displayName,
+                               isSelected: selection.selectedMediaOption(in: group) == option)
+                }
+        } ?? []
+    }
+
+    private func clearTracks() {
+        tracksTask?.cancel()
+        audioGroup = nil
+        subtitleGroup = nil
+        audioTracks = []
+        subtitleTracks = []
+    }
+
+    private static func trackID(_ option: AVMediaSelectionOption, in group: AVMediaSelectionGroup) -> String {
+        String(group.options.firstIndex(of: option) ?? -1)
+    }
+
+    private static func layerGravity(_ gravity: VideoGravity) -> AVLayerVideoGravity {
+        switch gravity {
+        case .fit: .resizeAspect
+        case .fill: .resizeAspectFill
+        case .stretch: .resize
+        }
     }
 
     private func refreshState() {

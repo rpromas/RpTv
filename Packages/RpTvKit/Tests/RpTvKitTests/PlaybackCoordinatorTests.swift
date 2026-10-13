@@ -14,6 +14,12 @@ final class FakeEngine: PlayerEngine {
     var state = PlaybackState.idle
     var currentTime: TimeInterval = 0
     var duration: TimeInterval?
+    var audioTracks: [MediaTrack] = []
+    var subtitleTracks: [MediaTrack] = []
+    var videoGravity = VideoGravity.fit
+    var rate: Float = 1
+    var supportsPictureInPicture = false
+    var isPictureInPictureActive = false
     private(set) var loadedItems: [PlaybackItem] = []
     private(set) var isStopped = false
 
@@ -34,6 +40,10 @@ final class FakeEngine: PlayerEngine {
         isStopped = true
         state = .idle
     }
+
+    func select(track: MediaTrack) {}
+    func disableSubtitles() {}
+    func startPictureInPicture() {}
 }
 
 @MainActor
@@ -92,6 +102,18 @@ struct PlaybackCoordinatorTests {
         #expect(PlaybackCoordinator.initialEngine(for: forced, remembered: .vlc) == .native)
         let forcedVLC = item("http://example.com/live/1.m3u8", preference: .vlc)
         #expect(PlaybackCoordinator.initialEngine(for: forcedVLC, remembered: nil) == .vlc)
+    }
+
+    @Test func bridgeStandsInForVLCWhileAirPlaying() {
+        #expect(PlaybackCoordinator.initialEngine(for: item("http://example.com/live/1.ts"), remembered: nil,
+                                                  prefersBridge: true) == .bridge)
+        #expect(PlaybackCoordinator.initialEngine(for: item("http://example.com/live/1.m3u8"), remembered: .vlc,
+                                                  prefersBridge: true) == .bridge)
+        #expect(PlaybackCoordinator.initialEngine(for: item("http://example.com/live/1.m3u8"), remembered: nil,
+                                                  prefersBridge: true) == .native)
+        // A forced VLC choice stays VLC.
+        let forcedVLC = item("http://example.com/live/1.ts", preference: .vlc)
+        #expect(PlaybackCoordinator.initialEngine(for: forcedVLC, remembered: nil, prefersBridge: true) == .vlc)
     }
 
     // MARK: - Playback and fallback
@@ -216,5 +238,46 @@ struct PlaybackCoordinatorTests {
         #expect(factory.made[0].isStopped)
         #expect(coordinator.engine == nil)
         #expect(coordinator.state == .idle)
+    }
+
+    // MARK: - AirPlay bridge
+
+    @Test func movesFromVLCToBridgeWhenAirPlayStarts() async throws {
+        let coordinator = coordinator()
+        coordinator.play(item("http://example.com/live/1.ts"))
+        #expect(coordinator.engine?.kind == .vlc)
+
+        coordinator.setPrefersBridge(true)
+        #expect(coordinator.engine?.kind == .bridge)
+        #expect(factory.made.first?.isStopped == true)
+        #expect(factory.made.last?.loadedItems.map(\.id) == ["http://example.com/live/1.ts"])
+    }
+
+    @Test func keepsNativePlaybackWhenAirPlayStarts() {
+        let coordinator = coordinator()
+        coordinator.play(item("http://example.com/live/1.m3u8"))
+        coordinator.setPrefersBridge(true)
+        #expect(coordinator.engine?.kind == .native)
+        #expect(factory.made.count == 1)
+    }
+
+    @Test func fallsBackFromNativeToBridgeThenVLCWhileAirPlaying() async throws {
+        let coordinator = coordinator()
+        coordinator.setPrefersBridge(true)
+        coordinator.play(item("http://example.com/live/1"))
+        #expect(coordinator.engine?.kind == .native)
+
+        (coordinator.engine as? FakeEngine)?.state = .failed("no")
+        try await eventually { coordinator.engine?.kind == .bridge }
+        (coordinator.engine as? FakeEngine)?.state = .failed("no")
+        try await eventually { coordinator.engine?.kind == .vlc }
+    }
+
+    @Test func remembersBridgedStreamsAsVLC() async throws {
+        let coordinator = coordinator()
+        coordinator.setPrefersBridge(true)
+        coordinator.play(item("http://example.com/live/1.ts"))
+        (coordinator.engine as? FakeEngine)?.play()
+        try await eventually { memory.engine(for: "http://example.com/live/1.ts") == .vlc }
     }
 }

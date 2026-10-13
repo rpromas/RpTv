@@ -7,11 +7,13 @@ import SwiftUI
 
 @main
 struct RpTvApp: App {
+    @UIApplicationDelegateAdaptor private var appDelegate: AppDelegate
     @State private var model = AppModel.live()
 
     init() {
         // Keep audio playing with the screen locked, in PiP, and with the silent switch on.
-        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .moviePlayback)
+        // Long-form video routing lets AirPlay carry the picture to a TV, not only the sound.
+        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .moviePlayback, policy: .longFormVideo)
     }
 
     var body: some Scene {

@@ -18,6 +18,46 @@ public enum PlayerEngineKind: String, Sendable, Codable, CaseIterable {
     case native
     /// VLCKit: everything else (raw MPEG-TS, MKV, RTMP, uncommon codecs).
     case vlc
+    /// FFmpeg repackages the stream as local HLS (re-encoding what Apple can't decode) and AVPlayer plays that.
+    /// Slower to start than VLC, but AirPlay can carry its video. Used for VLC streams while AirPlay is on.
+    case bridge
+}
+
+/// An audio or subtitle track the user can pick.
+public struct MediaTrack: Sendable, Hashable, Identifiable {
+    public enum Kind: Sendable, Hashable {
+        case audio
+        case subtitle
+    }
+
+    /// Unique within one engine and kind. Not stable across engines.
+    public var id: String
+    public var kind: Kind
+    public var name: String
+    public var isSelected: Bool
+
+    public init(id: String, kind: Kind, name: String, isSelected: Bool) {
+        self.id = id
+        self.kind = kind
+        self.name = name
+        self.isSelected = isSelected
+    }
+}
+
+/// How video fills the space it's drawn in.
+public enum VideoGravity: String, Sendable, CaseIterable {
+    /// The whole picture, letterboxed.
+    case fit
+    /// Fills the space, cropping the edges.
+    case fill
+    /// Fills the space, distorting the picture.
+    case stretch
+
+    /// The mode after this one, for a button that cycles through them.
+    public var next: VideoGravity {
+        let all = Self.allCases
+        return all[(all.firstIndex(of: self)! + 1) % all.count]
+    }
 }
 
 public enum EnginePreference: String, Sendable, Codable, CaseIterable {
@@ -35,11 +75,23 @@ public protocol PlayerEngine: AnyObject, Observable {
     /// `nil` for live streams and while unknown.
     var duration: TimeInterval? { get }
 
+    var audioTracks: [MediaTrack] { get }
+    var subtitleTracks: [MediaTrack] { get }
+    var videoGravity: VideoGravity { get set }
+    /// The playback speed, 1 being normal. Kept while paused.
+    var rate: Float { get set }
+    /// Whether ``startPictureInPicture()`` can be called right now.
+    var supportsPictureInPicture: Bool { get }
+    var isPictureInPictureActive: Bool { get }
+
     func load(_ item: PlaybackItem)
     func play()
     func pause()
     func seek(to time: TimeInterval)
     func stop()
+    func select(track: MediaTrack)
+    func disableSubtitles()
+    func startPictureInPicture()
 }
 
 /// Picks the engine that most likely plays a URL.
@@ -62,8 +114,13 @@ public enum EngineSelector {
         return .native
     }
 
-    /// The engine to retry with after `failed` could not play a stream.
-    public static func fallback(after failed: PlayerEngineKind) -> PlayerEngineKind? {
-        failed == .native ? .vlc : nil
+    /// The engine to retry with after `failed` could not play a stream. While AirPlay is on (`prefersBridge`),
+    /// streams AVPlayer can't open go through the bridge before VLC, which can only send sound over AirPlay.
+    public static func fallback(after failed: PlayerEngineKind, prefersBridge: Bool = false) -> PlayerEngineKind? {
+        switch failed {
+        case .native: prefersBridge ? .bridge : .vlc
+        case .bridge: .vlc
+        case .vlc: nil
+        }
     }
 }

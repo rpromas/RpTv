@@ -18,6 +18,11 @@ settings:
 packages:
   RpTvKit:
     path: Packages/RpTvKit
+  # Brings in Packages/FFmpeg (built from the Vendor/FFmpeg submodule by Scripts/build-ffmpeg.sh). The app
+  # doesn't reference FFmpeg itself: Xcode loses track of a local package listed here and also depended on by
+  # another one, and only StreamBridge may call FFmpeg (see CLAUDE.md).
+  StreamBridge:
+    path: Packages/StreamBridge
   Nuke:
     url: https://github.com/kean/Nuke
     from: "13.2.0"
@@ -40,6 +45,9 @@ targets:
       - package: Nuke
         product: NukeUI
       - package: VLCKit
+      # A dynamic framework (see its Package.swift), so it has to be embedded.
+      - package: StreamBridge
+        embed: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.rptv.RpTv

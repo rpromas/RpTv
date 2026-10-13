@@ -76,7 +76,7 @@ struct GuideView: View {
     /// The list the player zaps through when a channel is picked here.
     private func context(sourceID: Int64) -> ChannelListContext {
         let title = categories.first { $0.category.id == categoryID }?.category.name ?? "All Channels"
-        return ChannelListContext(sourceID: sourceID, categoryID: categoryID, title: title)
+        return ChannelListContext(sourceID: sourceID, list: categoryID.map { .category($0) } ?? .all, title: title)
     }
 
     private struct ChannelQuery: Equatable {

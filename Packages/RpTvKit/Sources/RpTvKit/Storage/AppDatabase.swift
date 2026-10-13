@@ -168,7 +168,67 @@ public final class AppDatabase: Sendable {
             try db.create(index: "movie_source_stableKey", on: Movie.databaseTableName, columns: ["sourceID", "stableKey"])
         }
 
+        migrator.registerMigration("v6") { db in
+            // Favorites and history point at items by stableKey, not id: a sync deletes and reinserts a
+            // source's rows, and these must survive that.
+            try db.create(table: Favorite.databaseTableName) { t in
+                t.column("sourceID", .integer).notNull().references(Source.databaseTableName, onDelete: .cascade)
+                t.column("kind", .text).notNull()
+                t.column("stableKey", .text).notNull()
+                t.column("sortIndex", .integer).notNull()
+                t.column("addedAt", .datetime).notNull()
+                t.primaryKey(["sourceID", "kind", "stableKey"])
+            }
+            try db.create(table: RecentItem.databaseTableName) { t in
+                t.column("sourceID", .integer).notNull().references(Source.databaseTableName, onDelete: .cascade)
+                t.column("kind", .text).notNull()
+                t.column("stableKey", .text).notNull()
+                t.column("playedAt", .datetime).notNull()
+                t.primaryKey(["sourceID", "kind", "stableKey"])
+            }
+            try db.create(index: "recentItem_playedAt", on: RecentItem.databaseTableName, columns: ["playedAt"])
+            try db.create(index: "channel_source_stableKey", on: Channel.databaseTableName, columns: ["sourceID", "stableKey"])
+            // Finds the channel a programme search result is on.
+            try db.create(index: "channel_source_guideID", on: Channel.databaseTableName, columns: ["sourceID", "guideID"])
+
+            // Full-text indexes over channel and movie names and programme titles, with diacritics folded so "cafe"
+            // finds "Café". They read their text from the tables (external content), and are rebuilt after
+            // each bulk write rather than kept in step by triggers: with triggers, resyncing 100,000 channels
+            // took seven times longer, and the index they left behind made searches slower.
+            try db.create(virtualTable: Self.channelSearchTable, using: FTS5()) { t in
+                t.content = Channel.databaseTableName
+                t.contentRowID = "id"
+                t.tokenizer = .unicode61(diacritics: .remove)
+                t.column("name")
+            }
+            try db.create(virtualTable: Self.programmeSearchTable, using: FTS5()) { t in
+                t.content = Programme.databaseTableName
+                t.contentRowID = "id"
+                t.tokenizer = .unicode61(diacritics: .remove)
+                t.column("title")
+            }
+            try db.create(virtualTable: Self.movieSearchTable, using: FTS5()) { t in
+                t.content = Movie.databaseTableName
+                t.contentRowID = "id"
+                t.tokenizer = .unicode61(diacritics: .remove)
+                t.column("name")
+            }
+            for table in [Self.channelSearchTable, Self.movieSearchTable, Self.programmeSearchTable] {
+                try rebuildSearchIndex(db, table)
+            }
+        }
+
         return migrator
+    }
+
+    static let channelSearchTable = "channelSearch"
+    static let movieSearchTable = "movieSearch"
+    static let programmeSearchTable = "programmeSearch"
+
+    /// Re-reads the indexed text of every row. Call after any write that adds, removes or renames
+    /// channels, movies or programmes. Rebuilding 100,000 channels takes about a quarter of a second.
+    static func rebuildSearchIndex(_ db: Database, _ table: String) throws {
+        try db.execute(sql: "INSERT INTO \(table)(\(table)) VALUES('rebuild')")
     }
 }
 
@@ -214,6 +274,16 @@ extension Movie: FetchableRecord, MutablePersistableRecord {
 
 extension MovieSummary: FetchableRecord {
     static let columns = ["id", "sourceID", "stableKey", "name", "posterURL", "rating", "year"].map { Column($0) }
+}
+
+extension ItemKind: DatabaseValueConvertible {}
+
+extension Favorite: FetchableRecord, PersistableRecord {
+    public static let databaseTableName = "favorite"
+}
+
+extension RecentItem: FetchableRecord, PersistableRecord {
+    public static let databaseTableName = "recentItem"
 }
 
 extension GuideChannel: FetchableRecord, PersistableRecord {

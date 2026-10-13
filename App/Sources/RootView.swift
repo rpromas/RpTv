@@ -19,6 +19,10 @@ struct RootView: View {
             }
         }
         .task { await model.observeSources() }
+        .task { await model.observeFavorites() }
+        .task(id: model.hasLoadedSources) {
+            if model.hasLoadedSources { await model.resumeLastChannelIfEnabled() }
+        }
         .task(id: model.hasLoadedSources) {
             if model.hasLoadedSources { await model.refreshStaleSources() }
         }
@@ -54,6 +58,9 @@ struct MainTabView: View {
             }
             Tab("Settings", systemImage: "gearshape") {
                 SettingsView()
+            }
+            Tab(role: .search) {
+                SearchView()
             }
         }
         .tabViewStyle(.sidebarAdaptable)

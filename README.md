@@ -9,6 +9,8 @@ A free, open-source IPTV player for iPhone and iPad, built with SwiftUI for iOS 
 - **Sources:** M3U/M3U8 playlists (by URL or imported file) and Xtream Codes accounts. Keep several sources and switch between them.
 - **Live TV:** categories and channels in a split view (sidebar on iPad, stack on iPhone), search, and channel logos.
 - **Movies:** Xtream VOD, and the movies an M3U playlist mixes in with its channels. A poster grid by category, sorted by date added, name or rating, with search, and a details screen (plot, cast, runtime, trailer).
+- **Favorites and recents:** star channels and movies from any list, poster or the player, reorder favorite channels by dragging, and find what you watched last. Optionally resume the last channel at launch.
+- **Search:** one search across all sources for channels, movies and guide programmes, matching word prefixes and ignoring accents ("cafe" finds "Café").
 - **TV guide:** XMLTV guides (from the playlist, the Xtream account, or a URL you set), now/next on every channel, and a guide grid with programme details and reminders.
 - **Catch-up:** watch past programmes from the provider's archive: Xtream timeshift, and M3U `catchup` modes (`default`, `append`, `shift`, `flussonic`).
 - **Playback:** the native AVPlayer engine with Picture in Picture, AirPlay and background audio, and VLC for raw MPEG-TS, MKV, RTMP and other formats AVPlayer can't play. RpTv picks the engine per stream and switches to VLC automatically when the native player fails. You can also force one engine per source.

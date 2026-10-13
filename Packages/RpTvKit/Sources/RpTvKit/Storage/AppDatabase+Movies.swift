@@ -28,7 +28,8 @@ extension AppDatabase {
         observeCategories(sourceID: sourceID, kind: .movie, itemTable: Movie.databaseTableName)
     }
 
-    /// Movies of a source for a poster grid, optionally narrowed to one category and to names containing `search`.
+    /// Movies of a source for a poster grid, optionally narrowed to one category and to names with words starting
+    /// with each word of `search` (ignoring case and diacritics).
     /// Movies in hidden categories are left out unless a category is picked explicitly.
     public func observeMovies(sourceID: Int64, categoryID: Int64?, search: String = "",
                               sort: MovieSort = .added) -> AsyncThrowingStream<[MovieSummary], Error> {
@@ -43,9 +44,13 @@ extension AppDatabase {
             let hidden = MediaCategory.filter(Column("isHidden") == true).select(Column("id"))
             request = request.filter(Column("categoryID") == nil || !hidden.contains(Column("categoryID")))
         }
-        let query = search.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !query.isEmpty {
-            request = request.filter(Column("name").like("%\(escapeLike(query))%", escape: "\\"))
+        if !search.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            // Text with no words in it, like "%", matches nothing.
+            if let pattern = searchPattern(search) {
+                request = request.filter(sql: "id IN (SELECT rowid FROM movieSearch WHERE movieSearch MATCH ?)", arguments: [pattern])
+            } else {
+                request = request.none()
+            }
         }
         let sortIndex = Column("sortIndex")
         // Movies without a date or rating go last.

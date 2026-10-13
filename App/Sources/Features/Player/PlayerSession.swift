@@ -6,12 +6,31 @@ import Foundation
 import Observation
 import RpTvKit
 
+/// One of a source's channel lists.
+enum ChannelList: Hashable {
+    case all
+    case category(Int64)
+    case favorites
+    case recent
+}
+
 /// The channel list the user played from, so the player can zap through it.
 struct ChannelListContext: Hashable {
     var sourceID: Int64
-    /// `nil` for All Channels.
-    var categoryID: Int64?
+    var list: ChannelList
     var title: String
+}
+
+extension AppDatabase {
+    /// The channels of `list`, kept up to date. `search` narrows All Channels and categories.
+    func observeChannels(sourceID: Int64, list: ChannelList, search: String = "") -> AsyncThrowingStream<[Channel], Error> {
+        switch list {
+        case .all: observeChannels(sourceID: sourceID, categoryID: nil, search: search)
+        case .category(let id): observeChannels(sourceID: sourceID, categoryID: id, search: search)
+        case .favorites: observeFavoriteChannels(sourceID: sourceID)
+        case .recent: observeRecentChannels(sourceID: sourceID)
+        }
+    }
 }
 
 /// One stay in the player: what's playing, and the channels around it.
@@ -35,6 +54,11 @@ final class PlayerSession: Identifiable {
     @ObservationIgnored let database: AppDatabase
     @ObservationIgnored private let resolver: PlaybackResolver
     @ObservationIgnored private let firstItem: PlaybackItem
+    @ObservationIgnored private var recordTask: Task<Void, Never>?
+
+    /// How long something has to play before it counts as watched, so zapping past channels doesn't fill
+    /// the recent list.
+    private static let watchedAfter = Duration.seconds(5)
 
     init(channel: Channel, source: Source, context: ChannelListContext?, catchup: Programme? = nil,
          database: AppDatabase, resolver: PlaybackResolver) throws {
@@ -76,10 +100,13 @@ final class PlayerSession: Identifiable {
 
     /// Starts playing, unless it already is.
     func start() {
-        if coordinator.item == nil { coordinator.play(firstItem) }
+        guard coordinator.item == nil else { return }
+        coordinator.play(firstItem)
+        recordWhenWatched()
     }
 
     func stop() {
+        recordTask?.cancel()
         coordinator.stop()
     }
 
@@ -98,6 +125,7 @@ final class PlayerSession: Identifiable {
             zapList.select(channel.stableKey)
             coordinator.play(item)
             zapCount += 1
+            recordWhenWatched()
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -108,12 +136,26 @@ final class PlayerSession: Identifiable {
         if let channel { zap(to: channel) }
     }
 
+    /// Adds the channel or movie to the recent list once it has played for a few seconds without failing.
+    private func recordWhenWatched() {
+        recordTask?.cancel()
+        guard let key = channel?.itemKey ?? movie?.itemKey else { return }
+        recordTask = Task { [weak self] in
+            try? await Task.sleep(for: Self.watchedAfter)
+            guard let self, !Task.isCancelled, (channel?.itemKey ?? movie?.itemKey) == key, !coordinator.state.isFailed
+            else { return }
+            try? await database.recordPlay(key)
+        }
+    }
+
     /// Keeps ``zapList`` in step with the catalog. Runs while the player is on screen.
     func observeChannels() async {
         guard let context else { return }
         do {
-            for try await channels in database.observeChannels(sourceID: context.sourceID, categoryID: context.categoryID) {
+            for try await channels in database.observeChannels(sourceID: context.sourceID, list: context.list) {
                 zapList.replaceChannels(channels)
+                // Watching reorders the recent list. Zap through it as it was when the player opened.
+                if context.list == .recent { break }
             }
         } catch is CancellationError {
         } catch {

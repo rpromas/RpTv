@@ -12,15 +12,32 @@ struct ChannelRow: View {
     var nowNext: NowNext?
     /// The time the guide line and progress bar are drawn for.
     var now: Date = .now
+    var isFavorite = false
+    /// Shown under the name, for lists that mix sources.
+    var sourceName: String?
 
     var body: some View {
         HStack(spacing: 14) {
             ChannelLogo(url: channel.logoURL, name: channel.name)
                 .frame(width: 56, height: 40)
             VStack(alignment: .leading, spacing: 2) {
-                Text(channel.name)
-                    .font(.body.weight(.medium))
-                    .lineLimit(1)
+                HStack(spacing: 4) {
+                    Text(channel.name)
+                        .font(.body.weight(.medium))
+                        .lineLimit(1)
+                    if isFavorite {
+                        Image(systemName: "star.fill")
+                            .font(.caption2)
+                            .foregroundStyle(.yellow)
+                            .accessibilityLabel("Favorite")
+                    }
+                }
+                if let sourceName {
+                    Text(sourceName)
+                        .font(.caption)
+                        .foregroundStyle(.tint)
+                        .lineLimit(1)
+                }
                 if let nowNext {
                     // Read out as the row's value, so the row's label stays the channel name.
                     GuideLines(nowNext: nowNext, now: now)

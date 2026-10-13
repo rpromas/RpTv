@@ -10,6 +10,7 @@ struct SettingsView: View {
     @State private var isAddingSource = false
     @State private var sourcePendingDeletion: Source?
     @State private var detailSourceID: Int64?
+    @AppStorage(AppModel.resumeLastChannelKey) private var resumesLastChannel = false
 
     var body: some View {
         NavigationStack {
@@ -37,6 +38,14 @@ struct SettingsView: View {
                     Button("Add Source", systemImage: "plus") {
                         isAddingSource = true
                     }
+                }
+
+                Section {
+                    Toggle("Resume Last Channel", isOn: $resumesLastChannel)
+                } header: {
+                    Text("Playback")
+                } footer: {
+                    Text("When RpTv opens, it plays the channel you watched last.")
                 }
 
                 Section {

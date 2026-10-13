@@ -5,12 +5,19 @@
 import RpTvKit
 import SwiftUI
 
-/// The active source's movies: category chips over a poster grid, with sorting and search.
+/// One of a source's movie lists.
+enum MovieList: Hashable {
+    case all
+    case category(Int64)
+    case favorites
+    case recent
+}
+
+/// The active source's movies: list and category chips over a poster grid, with sorting and search.
 struct MoviesView: View {
     @Environment(AppModel.self) private var model
     @State private var categories: [CategorySummary] = []
-    /// `nil` for all movies.
-    @State private var categoryID: Int64?
+    @State private var list = MovieList.all
     @State private var search = ""
     @AppStorage("movieSort") private var sort = MovieSort.added
 
@@ -18,11 +25,9 @@ struct MoviesView: View {
         NavigationStack {
             Group {
                 if let sourceID = model.activeSource?.id {
-                    MovieGrid(sourceID: sourceID, categoryID: categoryID, search: search, sort: sort)
+                    MovieGrid(sourceID: sourceID, list: list, search: search, sort: sort)
                         .safeAreaBar(edge: .top) {
-                            if categories.count > 1 {
-                                CategoryChips(categories: categories, selection: $categoryID)
-                            }
+                            CategoryChips(categories: categories, selection: $list)
                         }
                 } else {
                     ContentUnavailableView("No Source", systemImage: "film")
@@ -55,29 +60,33 @@ struct MoviesView: View {
             do {
                 for try await categories in model.database.observeMovieCategories(sourceID: sourceID) {
                     self.categories = categories
-                    if let categoryID, !categories.contains(where: { $0.id == categoryID }) { self.categoryID = nil }
+                    if case .category(let id) = list, !categories.contains(where: { $0.id == id }) { list = .all }
                 }
             } catch is CancellationError {
             } catch {
                 model.alertMessage = error.localizedDescription
             }
         }
-        .onChange(of: model.activeSource?.id) { categoryID = nil }
+        .onChange(of: model.activeSource?.id) { list = .all }
     }
 }
 
-/// "All" and one chip per category, scrolling sideways.
+/// "All", "Favorites", "Recent" and one chip per category, scrolling sideways.
 private struct CategoryChips: View {
     let categories: [CategorySummary]
-    @Binding var selection: Int64?
+    @Binding var selection: MovieList
 
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView(.horizontal) {
-                LazyHStack(spacing: 8) {
-                    chip("All", id: nil)
+                HStack(spacing: 8) {
+                    chip("All", list: .all)
+                    chip("Favorites", list: .favorites)
+                        .accessibilityIdentifier("movieFavoritesChip")
+                    chip("Recent", list: .recent)
+                        .accessibilityIdentifier("movieRecentChip")
                     ForEach(categories) { summary in
-                        chip(summary.category.name, id: summary.category.id)
+                        chip(summary.category.name, list: .category(summary.category.id!))
                     }
                 }
                 .padding(.horizontal)
@@ -86,18 +95,18 @@ private struct CategoryChips: View {
             .scrollIndicators(.hidden)
             // A horizontal scroll view takes all the height it's offered: keep the bar to its chips.
             .fixedSize(horizontal: false, vertical: true)
-            .onChange(of: selection) { _, id in
-                withAnimation { proxy.scrollTo(id, anchor: .center) }
+            .onChange(of: selection) { _, list in
+                withAnimation { proxy.scrollTo(list, anchor: .center) }
             }
         }
     }
 
-    @ViewBuilder private func chip(_ title: String, id: Int64?) -> some View {
-        let button = Button(title) { selection = id }
+    @ViewBuilder private func chip(_ title: String, list: MovieList) -> some View {
+        let button = Button(title) { selection = list }
             .controlSize(.small)
-            .accessibilityAddTraits(selection == id ? .isSelected : [])
-            .id(id)
-        if selection == id {
+            .accessibilityAddTraits(selection == list ? .isSelected : [])
+            .id(list)
+        if selection == list {
             button.buttonStyle(.glassProminent)
         } else {
             button.buttonStyle(.glass)
@@ -108,7 +117,7 @@ private struct CategoryChips: View {
 /// Posters in an adaptive grid. Only the posters on screen are built, and each image is downsampled.
 private struct MovieGrid: View {
     let sourceID: Int64
-    let categoryID: Int64?
+    let list: MovieList
     let search: String
     let sort: MovieSort
 
@@ -123,9 +132,11 @@ private struct MovieGrid: View {
             LazyVGrid(columns: [GridItem(.adaptive(minimum: posterWidth), spacing: 12, alignment: .top)], spacing: 18) {
                 ForEach(movies) { movie in
                     NavigationLink(value: movie) {
-                        PosterCell(movie: movie, posterWidth: posterWidth * 1.4)
+                        PosterCell(movie: movie, posterWidth: posterWidth * 1.4,
+                                   isFavorite: list != .favorites && model.isFavorite(movie.itemKey))
                     }
                     .buttonStyle(.plain)
+                    .favoriteActions(for: movie.itemKey)
                 }
             }
             .padding(.horizontal)
@@ -137,16 +148,21 @@ private struct MovieGrid: View {
             if hasLoaded, movies.isEmpty {
                 if !search.isEmpty {
                     ContentUnavailableView.search(text: search)
+                } else if list == .favorites {
+                    ContentUnavailableView("No Favorite Movies", systemImage: "star",
+                                           description: Text("Touch and hold a poster to add it to your favorites."))
+                } else if list == .recent {
+                    ContentUnavailableView("Nothing Watched Yet", systemImage: "clock",
+                                           description: Text("Movies you watch appear here."))
                 } else {
                     ContentUnavailableView("No Movies", systemImage: "film",
                                            description: Text("This source doesn't have any movies."))
                 }
             }
         }
-        .task(id: QueryKey(sourceID: sourceID, categoryID: categoryID, search: search, sort: sort)) {
+        .task(id: QueryKey(sourceID: sourceID, list: list, search: search, sort: sort)) {
             do {
-                for try await movies in model.database.observeMovies(sourceID: sourceID, categoryID: categoryID,
-                                                                     search: search, sort: sort) {
+                for try await movies in observeMovies() {
                     self.movies = movies
                     hasLoaded = true
                 }
@@ -154,6 +170,21 @@ private struct MovieGrid: View {
             } catch {
                 model.alertMessage = error.localizedDescription
             }
+        }
+    }
+
+    /// Favorites keep the user's order and recents the latest first; the few they hold are searched here.
+    private func observeMovies() -> any AsyncSequence<[MovieSummary], any Error> {
+        let database = model.database
+        let search = search
+        let filter: @Sendable ([MovieSummary]) -> [MovieSummary] = { movies in
+            search.isEmpty ? movies : movies.filter { $0.name.localizedStandardContains(search) }
+        }
+        switch list {
+        case .all: return database.observeMovies(sourceID: sourceID, categoryID: nil, search: search, sort: sort)
+        case .category(let id): return database.observeMovies(sourceID: sourceID, categoryID: id, search: search, sort: sort)
+        case .favorites: return database.observeFavoriteMovies(sourceID: sourceID).map(filter)
+        case .recent: return database.observeRecentMovies(sourceID: sourceID).map(filter)
         }
     }
 
@@ -168,7 +199,7 @@ private struct MovieGrid: View {
 
     private struct QueryKey: Equatable {
         var sourceID: Int64
-        var categoryID: Int64?
+        var list: MovieList
         var search: String
         var sort: MovieSort
     }
@@ -177,6 +208,7 @@ private struct MovieGrid: View {
 private struct PosterCell: View {
     let movie: MovieSummary
     let posterWidth: CGFloat
+    var isFavorite = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -190,6 +222,17 @@ private struct PosterCell: View {
                             .padding(.vertical, 3)
                             .background(.ultraThinMaterial, in: .capsule)
                             .padding(5)
+                    }
+                }
+                .overlay(alignment: .topLeading) {
+                    if isFavorite {
+                        Image(systemName: "star.fill")
+                            .font(.caption2)
+                            .foregroundStyle(.yellow)
+                            .padding(5)
+                            .background(.ultraThinMaterial, in: .circle)
+                            .padding(5)
+                            .accessibilityLabel("Favorite")
                     }
                 }
             Text(movie.name)

@@ -108,7 +108,12 @@ extension AppDatabase {
 
     /// Deletes a source and, through cascading foreign keys, everything that belongs to it.
     public func deleteSource(id: Int64) async throws {
-        _ = try await writer.write { db in try Source.deleteOne(db, key: id) }
+        try await writer.write { db in
+            try Source.deleteOne(db, key: id)
+            for table in [Self.channelSearchTable, Self.movieSearchTable, Self.programmeSearchTable] {
+                try Self.rebuildSearchIndex(db, table)
+            }
+        }
     }
 
     public func recordSync(sourceID: Int64, error: String?, at date: Date = .now) async throws {
@@ -156,6 +161,7 @@ extension AppDatabase {
         }
 
         try resolveGuideIDs(db, sourceID: sourceID)
+        try rebuildSearchIndex(db, channelSearchTable)
     }
 
     private static func replaceMovieCatalog(_ db: Database, sourceID: Int64, with catalog: MovieCatalog) throws {
@@ -175,6 +181,7 @@ extension AppDatabase {
             if let details = cached[movie.stableKey] { movie.keepDetails(of: details) }
             try movie.insert(db)
         }
+        try rebuildSearchIndex(db, movieSearchTable)
     }
 
     /// Replaces a source's categories of one kind, keeping the ones the user hid hidden.
@@ -227,8 +234,9 @@ extension AppDatabase {
         }
     }
 
-    /// Channels of a source, optionally narrowed to one category and to names containing `search`.
-    /// Channels in hidden categories are left out unless a category is picked explicitly.
+    /// Channels of a source, optionally narrowed to one category and to names with words starting with each
+    /// word of `search` (ignoring case and diacritics). Channels in hidden categories are left out unless a
+    /// category is picked explicitly.
     public func observeChannels(sourceID: Int64, categoryID: Int64?, search: String = "") -> AsyncThrowingStream<[Channel], Error> {
         observe { db in
             var request = Channel.filter(Column("sourceID") == sourceID)
@@ -238,9 +246,11 @@ extension AppDatabase {
                 let hidden = MediaCategory.filter(Column("isHidden") == true).select(Column("id"))
                 request = request.filter(Column("categoryID") == nil || !hidden.contains(Column("categoryID")))
             }
-            let query = search.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !query.isEmpty {
-                request = request.filter(Column("name").like("%\(Self.escapeLike(query))%", escape: "\\"))
+            if !search.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                // Text with no words in it, like "%", matches nothing.
+                guard let pattern = Self.searchPattern(search) else { return [] }
+                request = request.filter(sql: "id IN (SELECT rowid FROM channelSearch WHERE channelSearch MATCH ?)",
+                                         arguments: [pattern])
             }
             return try request.order(Column("sortIndex")).fetchAll(db)
         }
@@ -263,9 +273,5 @@ extension AppDatabase {
             }
             continuation.onTermination = { _ in task.cancel() }
         }
-    }
-
-    static func escapeLike(_ text: String) -> String {
-        text.replacing("\\", with: "\\\\").replacing("%", with: "\\%").replacing("_", with: "\\_")
     }
 }

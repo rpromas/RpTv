@@ -112,6 +112,17 @@ struct MovieDetailView: View {
             .disabled(movie == nil)
             .accessibilityIdentifier("playMovieButton")
 
+            let isFavorite = model.isFavorite(summary.itemKey)
+            Button {
+                model.toggleFavorite(summary.itemKey)
+            } label: {
+                Label(isFavorite ? "Remove from Favorites" : "Add to Favorites", systemImage: isFavorite ? "star.fill" : "star")
+                    .labelStyle(.iconOnly)
+            }
+            .buttonStyle(.glass)
+            .controlSize(.large)
+            .accessibilityIdentifier("movieFavoriteButton")
+
             if let trailer = movie?.trailerURL {
                 Button {
                     openURL(trailer)

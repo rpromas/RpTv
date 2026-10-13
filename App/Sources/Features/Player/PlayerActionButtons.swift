@@ -33,6 +33,25 @@ struct PlayerIconButton: View {
     }
 }
 
+/// Stars or unstars the channel or movie playing in the player.
+struct FavoriteButton: View {
+    let item: ItemKey
+
+    @Environment(AppModel.self) private var model
+    @Environment(PlayerChrome.self) private var chrome
+
+    var body: some View {
+        let isFavorite = model.isFavorite(item)
+        PlayerIconButton(title: isFavorite ? "Remove from Favorites" : "Add to Favorites",
+                         systemImage: isFavorite ? "star.fill" : "star") {
+            model.toggleFavorite(item)
+            chrome.showHUD(isFavorite ? "Removed from Favorites" : "Added to Favorites")
+            chrome.interacted()
+        }
+        .accessibilityIdentifier("favoriteButton")
+    }
+}
+
 /// Picks the audio track and subtitles. Hidden when there's nothing to pick.
 struct TracksMenu: View {
     let engine: any PlayerEngine

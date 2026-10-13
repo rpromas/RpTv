@@ -159,6 +159,78 @@ final class AddSourceAndPlayUITests: XCTestCase {
         XCTAssertTrue(play.waitForExistence(timeout: 5))
     }
 
+    /// Star a channel, find it under Favorites, watch it, find it under Recent, then search for another one.
+    @MainActor
+    func testFavoritesRecentsAndSearch() throws {
+        let app = try launchWithDemoPlaylist()
+
+        let channel = app.buttons["BipBop Basic"].firstMatch
+        XCTAssertTrue(channel.waitForExistence(timeout: 30), "Channels didn't appear after adding the source")
+        channel.press(forDuration: 1)
+        let addFavorite = app.buttons["Add to Favorites"]
+        XCTAssertTrue(addFavorite.waitForExistence(timeout: 5))
+        addFavorite.tap()
+
+        // iPhone shows All Channels on top of the sidebar: go back to it.
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        app.buttons["favoritesList"].tap()
+        let favorite = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'BipBop Basic'")).firstMatch
+        XCTAssertTrue(favorite.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["BipBop Advanced (fMP4)"].exists)
+        attach(app, "Favorites")
+
+        // Watched for a few seconds, it counts as recent.
+        favorite.tap()
+        XCTAssertTrue(app.buttons["Close"].waitForExistence(timeout: 10))
+        sleep(7)
+        let close = app.buttons["Close"]
+        if !close.isHittable {
+            app.descendants(matching: .any)["nativeVideo"].coordinate(withNormalizedOffset: CGVector(dx: 0.2, dy: 0.5)).tap()
+        }
+        XCTAssertTrue(app.buttons["Remove from Favorites"].waitForExistence(timeout: 3), "The player doesn't show the channel as a favorite")
+        close.tap()
+
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        app.buttons["recentList"].tap()
+        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'BipBop Basic'")).firstMatch.waitForExistence(timeout: 5))
+        attach(app, "Recent")
+
+        // Search matches word prefixes, in any order.
+        app.buttons["Search"].firstMatch.tap()
+        let field = app.searchFields.firstMatch
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        field.tap()
+        field.typeText("fmp bip")
+        let result = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'BipBop Advanced (fMP4)'")).firstMatch
+        XCTAssertTrue(result.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'BipBop Basic'")).firstMatch.exists)
+        attach(app, "Search")
+
+        // Movies are searched too. Star one from its details, and it's under Favorites in Movies.
+        field.buttons["Clear text"].tap()
+        field.typeText("observ")
+        let movie = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Discover Observation in SwiftUI (2023)'")).firstMatch
+        XCTAssertTrue(movie.waitForExistence(timeout: 5), "The movie isn't in the search results")
+        movie.tap()
+        let star = app.buttons["movieFavoriteButton"]
+        XCTAssertTrue(star.waitForExistence(timeout: 5))
+        star.tap()
+        XCTAssertTrue(app.buttons["Remove from Favorites"].waitForExistence(timeout: 3))
+
+        app.buttons["Movies"].firstMatch.tap()
+        // The poster's label starts with "Favorite" when it's starred.
+        let poster = app.buttons["Favorite, Discover Observation in SwiftUI (2023), 2023"].firstMatch
+        XCTAssertTrue(poster.waitForExistence(timeout: 5), "The poster isn't marked as a favorite")
+        let favoritesChip = app.buttons["movieFavoritesChip"]
+        favoritesChip.tap()
+        expectation(for: NSPredicate(format: "isSelected == true"), evaluatedWith: favoritesChip)
+        waitForExpectations(timeout: 5)
+        // Every poster there is a favorite, so none is badged.
+        XCTAssertTrue(app.buttons["Discover Observation in SwiftUI (2023), 2023"].firstMatch.waitForExistence(timeout: 5),
+                      "The starred movie isn't under Favorites")
+        attach(app, "Favorite movies")
+    }
+
     /// Waits for the window to finish rotating.
     @MainActor
     private func waitForLandscape(_ app: XCUIApplication, _ landscape: Bool) {

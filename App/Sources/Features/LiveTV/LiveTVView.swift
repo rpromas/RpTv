@@ -7,25 +7,30 @@ import SwiftUI
 
 /// Categories in a sidebar, channels in the detail column. Collapses to a stack on iPhone.
 struct LiveTVView: View {
-    enum CategorySelection: Hashable {
-        case all
-        case category(Int64)
-    }
-
     @Environment(AppModel.self) private var model
     @State private var categories: [CategorySummary] = []
-    @State private var selection: CategorySelection? = .all
+    @State private var selection: ChannelList? = .all
     @State private var preferredColumn = NavigationSplitViewColumn.sidebar
 
     var body: some View {
         NavigationSplitView(preferredCompactColumn: $preferredColumn) {
             List(selection: $selection) {
-                NavigationLink(value: CategorySelection.all) {
-                    Label("All Channels", systemImage: "square.grid.2x2")
+                Section {
+                    NavigationLink(value: ChannelList.favorites) {
+                        Label("Favorites", systemImage: "star")
+                    }
+                    .accessibilityIdentifier("favoritesList")
+                    NavigationLink(value: ChannelList.recent) {
+                        Label("Recent", systemImage: "clock")
+                    }
+                    .accessibilityIdentifier("recentList")
+                    NavigationLink(value: ChannelList.all) {
+                        Label("All Channels", systemImage: "square.grid.2x2")
+                    }
                 }
                 Section("Categories") {
                     ForEach(categories) { summary in
-                        NavigationLink(value: CategorySelection.category(summary.category.id!)) {
+                        NavigationLink(value: ChannelList.category(summary.category.id!)) {
                             LabeledContent(summary.category.name) {
                                 Text(summary.itemCount.formatted())
                                     .monospacedDigit()
@@ -39,7 +44,8 @@ struct LiveTVView: View {
             .refreshable { await refreshActiveSource() }
         } detail: {
             if let source = model.activeSource, let sourceID = source.id, let selection {
-                ChannelListView(sourceID: sourceID, categoryID: categoryID(for: selection), title: title(for: selection))
+                ChannelListView(context: ChannelListContext(sourceID: sourceID, list: selection, title: title(for: selection)))
+                    .id(selection)
             } else {
                 ContentUnavailableView("Pick a Category", systemImage: "tv")
             }
@@ -60,14 +66,12 @@ struct LiveTVView: View {
         }
     }
 
-    private func categoryID(for selection: CategorySelection) -> Int64? {
-        if case .category(let id) = selection { id } else { nil }
-    }
-
-    private func title(for selection: CategorySelection) -> String {
+    private func title(for selection: ChannelList) -> String {
         switch selection {
         case .all: "All Channels"
         case .category(let id): categories.first { $0.category.id == id }?.category.name ?? "Channels"
+        case .favorites: "Favorites"
+        case .recent: "Recent"
         }
     }
 
@@ -108,10 +112,9 @@ struct SourceToolbar: ToolbarContent {
     }
 }
 
+/// The channels of one list. Favorites can be reordered by dragging; All Channels and categories can be searched.
 struct ChannelListView: View {
-    let sourceID: Int64
-    let categoryID: Int64?
-    let title: String
+    let context: ChannelListContext
 
     @Environment(AppModel.self) private var model
     @State private var channels: [Channel] = []
@@ -120,31 +123,34 @@ struct ChannelListView: View {
 
     var body: some View {
         NowNextReader(database: model.database, channelIDs: channels.compactMap(\.id)) { nowNext, now in
-            List(channels) { channel in
-                Button {
-                    model.play(channel, in: ChannelListContext(sourceID: sourceID, categoryID: categoryID, title: title))
-                } label: {
-                    ChannelRow(channel: channel, nowNext: channel.id.flatMap { nowNext[$0] }, now: now)
+            List {
+                ForEach(channels) { channel in
+                    Button {
+                        model.play(channel, in: context)
+                    } label: {
+                        ChannelRow(channel: channel, nowNext: channel.id.flatMap { nowNext[$0] }, now: now,
+                                   isFavorite: context.list != .favorites && model.isFavorite(channel.itemKey))
+                    }
+                    .buttonStyle(.plain)
+                    .favoriteActions(for: channel.itemKey)
                 }
-                .buttonStyle(.plain)
+                .onMove(perform: context.list == .favorites ? move(from:to:) as (IndexSet, Int) -> Void : nil)
             }
             .listStyle(.plain)
         }
-        .navigationTitle(title)
+        .navigationTitle(context.title)
         .navigationBarTitleDisplayMode(.inline)
-        .searchable(text: $search, prompt: "Search channels")
+        .modifier(SearchableIf(isSearchable: isSearchable, text: $search))
+        .toolbar { editToolbar }
         .overlay {
             if hasLoaded, channels.isEmpty {
-                if search.isEmpty {
-                    ContentUnavailableView("No Channels", systemImage: "tv.slash")
-                } else {
-                    ContentUnavailableView.search(text: search)
-                }
+                emptyView
             }
         }
-        .task(id: QueryKey(sourceID: sourceID, categoryID: categoryID, search: search)) {
+        .task(id: QueryKey(context: context, search: search)) {
             do {
-                for try await channels in model.database.observeChannels(sourceID: sourceID, categoryID: categoryID, search: search) {
+                for try await channels in model.database.observeChannels(sourceID: context.sourceID, list: context.list,
+                                                                         search: isSearchable ? search : "") {
                     self.channels = channels
                     hasLoaded = true
                 }
@@ -155,10 +161,60 @@ struct ChannelListView: View {
         }
     }
 
+    /// Reordering favorites by dragging also works without it, but this makes it discoverable.
+    @ToolbarContentBuilder private var editToolbar: some ToolbarContent {
+        if context.list == .favorites, channels.count > 1 {
+            ToolbarItem(placement: .primaryAction) { EditButton() }
+        }
+    }
+
+    private var isSearchable: Bool {
+        switch context.list {
+        case .all, .category: true
+        case .favorites, .recent: false
+        }
+    }
+
+    @ViewBuilder private var emptyView: some View {
+        switch context.list {
+        case .favorites:
+            ContentUnavailableView("No Favorites", systemImage: "star",
+                                   description: Text("Swipe right on a channel, or touch and hold it, to add it to your favorites."))
+        case .recent:
+            ContentUnavailableView("Nothing Watched Yet", systemImage: "clock",
+                                   description: Text("Channels you watch appear here."))
+        case .all, .category:
+            if search.isEmpty {
+                ContentUnavailableView("No Channels", systemImage: "tv.slash")
+            } else {
+                ContentUnavailableView.search(text: search)
+            }
+        }
+    }
+
     private struct QueryKey: Equatable {
-        var sourceID: Int64
-        var categoryID: Int64?
+        var context: ChannelListContext
         var search: String
+    }
+
+    private func move(from offsets: IndexSet, to destination: Int) {
+        channels.move(fromOffsets: offsets, toOffset: destination)
+        let reordered = channels
+        Task { await model.reorderFavorites(reordered, sourceID: context.sourceID) }
+    }
+}
+
+/// `.searchable`, only when the list can be searched.
+private struct SearchableIf: ViewModifier {
+    let isSearchable: Bool
+    @Binding var text: String
+
+    func body(content: Content) -> some View {
+        if isSearchable {
+            content.searchable(text: $text, prompt: "Search channels")
+        } else {
+            content
+        }
     }
 }
 

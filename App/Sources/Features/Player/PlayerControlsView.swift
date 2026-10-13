@@ -49,6 +49,9 @@ struct PlayerTopBar: View {
             Spacer(minLength: 8)
             GlassEffectContainer(spacing: 8) {
                 HStack(spacing: 8) {
+                    if let item = session.channel?.itemKey ?? session.movie?.itemKey {
+                        FavoriteButton(item: item)
+                    }
                     if let engine = session.coordinator.engine {
                         TracksMenu(engine: engine)
                         if showsAspect { AspectButton(engine: engine) }

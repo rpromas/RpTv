@@ -86,6 +86,7 @@ extension AppDatabase {
             }
 
             try Self.resolveGuideIDs(db, sourceID: sourceID)
+            try Self.rebuildSearchIndex(db, Self.programmeSearchTable)
             return count
         }
     }

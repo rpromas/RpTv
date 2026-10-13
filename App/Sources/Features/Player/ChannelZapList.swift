@@ -9,6 +9,7 @@ import SwiftUI
 struct ChannelZapList: View {
     let session: PlayerSession
 
+    @Environment(AppModel.self) private var model
     @State private var hasScrolledToCurrent = false
 
     var body: some View {
@@ -35,7 +36,8 @@ struct ChannelZapList: View {
                 session.zap(to: channel)
             } label: {
                 HStack(spacing: 8) {
-                    ChannelRow(channel: channel, nowNext: channel.id.flatMap { nowNext[$0] }, now: now)
+                    ChannelRow(channel: channel, nowNext: channel.id.flatMap { nowNext[$0] }, now: now,
+                               isFavorite: model.isFavorite(channel.itemKey))
                     if isCurrent {
                         Image(systemName: "speaker.wave.2.fill")
                             .symbolEffect(.variableColor.iterative)
@@ -45,6 +47,7 @@ struct ChannelZapList: View {
                 }
             }
             .buttonStyle(.plain)
+            .favoriteActions(for: channel.itemKey)
             .listRowBackground(isCurrent ? Color.accentColor.opacity(0.18) : Color.clear)
         }
         .listStyle(.plain)

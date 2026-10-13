@@ -26,6 +26,8 @@ final class AppModel {
     private(set) var syncPhases: [Int64: SyncPhase] = [:]
     /// Sources whose TV guide is being downloaded.
     private(set) var guideSyncing: Set<Int64> = []
+    /// Every favorite of every source, for marking starred items wherever they appear.
+    private(set) var favorites: Set<ItemKey> = []
     /// The player on screen, if any.
     var playerSession: PlayerSession?
     /// A user-facing error to show in an alert.
@@ -40,6 +42,8 @@ final class AppModel {
     }
 
     private static let activeSourceKey = "activeSourceID"
+    /// The setting that reopens the last channel at launch. Off unless the user turns it on.
+    static let resumeLastChannelKey = "resumeLastChannel"
     private static let staleInterval: TimeInterval = 24 * 60 * 60
 
     init(database: AppDatabase, credentials: any CredentialStore, playlistDirectory: URL, startupError: String? = nil) {
@@ -63,6 +67,7 @@ final class AppModel {
         if ProcessInfo.processInfo.arguments.contains("--uitesting") {
             // UI tests start from a clean slate every launch.
             UserDefaults.standard.removeObject(forKey: activeSourceKey)
+            UserDefaults.standard.removeObject(forKey: resumeLastChannelKey)
             return AppModel(database: try! AppDatabase.inMemory(), credentials: InMemoryCredentialStore(),
                             playlistDirectory: playlists)
         }
@@ -247,6 +252,42 @@ final class AppModel {
         }
     }
 
+    // MARK: - Favorites
+
+    /// Keeps ``favorites`` in sync with the database. Runs for the app's lifetime.
+    func observeFavorites() async {
+        do {
+            for try await favorites in database.observeFavoriteKeys() {
+                self.favorites = favorites
+            }
+        } catch {
+            alertMessage = error.localizedDescription
+        }
+    }
+
+    func isFavorite(_ item: ItemKey) -> Bool {
+        favorites.contains(item)
+    }
+
+    func toggleFavorite(_ item: ItemKey) {
+        Task {
+            do {
+                try await database.toggleFavorite(item)
+            } catch {
+                alertMessage = error.localizedDescription
+            }
+        }
+    }
+
+    /// Moves a source's favorite channels into the order of `channels`.
+    func reorderFavorites(_ channels: [Channel], sourceID: Int64) async {
+        do {
+            try await database.reorderFavorites(sourceID: sourceID, kind: .channel, stableKeys: channels.map(\.stableKey))
+        } catch {
+            alertMessage = error.localizedDescription
+        }
+    }
+
     // MARK: - Playback
 
     /// Opens the player on `channel`. `context` is the list it was picked from, which the player zaps through.
@@ -281,7 +322,20 @@ final class AppModel {
     private func openChannel(sourceID: Int64, stableKey: String) async {
         guard let channel = try? await database.channel(sourceID: sourceID, stableKey: stableKey) else { return }
         playerSession = nil
-        play(channel, in: ChannelListContext(sourceID: sourceID, categoryID: nil, title: "All Channels"))
+        play(channel, in: .allChannels(of: sourceID))
+    }
+
+    /// Reopens the channel played last, if the user turned that on in Settings. Call once sources have loaded.
+    func resumeLastChannelIfEnabled() async {
+        guard UserDefaults.standard.bool(forKey: Self.resumeLastChannelKey), playerSession == nil,
+              let channel = try? await database.lastPlayedChannel(), playerSession == nil else { return }
+        play(channel, in: .allChannels(of: channel.sourceID))
+    }
+}
+
+extension ChannelListContext {
+    static func allChannels(of sourceID: Int64) -> ChannelListContext {
+        ChannelListContext(sourceID: sourceID, list: .all, title: "All Channels")
     }
 }
 

@@ -60,6 +60,15 @@ extension AppDatabase {
         try await writer.write { db in try source.update(db) }
     }
 
+    /// Changes some fields of the stored source, leaving the rest (such as sync results) as they are in the database.
+    public func modifySource(id: Int64, _ modify: @escaping @Sendable (inout Source) -> Void) async throws {
+        try await writer.write { db in
+            guard var source = try Source.fetchOne(db, key: id) else { return }
+            modify(&source)
+            try source.update(db)
+        }
+    }
+
     /// Deletes a source and, through cascading foreign keys, everything that belongs to it.
     public func deleteSource(id: Int64) async throws {
         _ = try await writer.write { db in try Source.deleteOne(db, key: id) }

@@ -7,3 +7,5 @@ https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_exam
 https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_ts/master.m3u8
 #EXTINF:-1 tvg-id="apple.atmos" group-title="Dolby Samples",Dolby Vision & Atmos
 https://devstreaming-cdn.apple.com/videos/streaming/examples/adv_dv_atmos/main.m3u8
+#EXTINF:-1 tvg-id="apple.bipbop.segment" group-title="Apple Samples",BipBop Segment (MPEG-TS)
+https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_ts/v5/fileSequence0.ts

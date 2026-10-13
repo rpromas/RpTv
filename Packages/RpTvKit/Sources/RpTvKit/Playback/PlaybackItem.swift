@@ -14,6 +14,8 @@ public struct PlaybackItem: Sendable, Hashable, Identifiable {
     public var headers: [String: String]
     public var isLive: Bool
     public var startPosition: TimeInterval?
+    /// The engine the user wants for this item's source.
+    public var enginePreference: EnginePreference
 
     public init(
         id: String,
@@ -23,7 +25,8 @@ public struct PlaybackItem: Sendable, Hashable, Identifiable {
         artworkURL: URL? = nil,
         headers: [String: String] = [:],
         isLive: Bool,
-        startPosition: TimeInterval? = nil
+        startPosition: TimeInterval? = nil,
+        enginePreference: EnginePreference = .automatic
     ) {
         self.id = id
         self.url = url
@@ -33,6 +36,7 @@ public struct PlaybackItem: Sendable, Hashable, Identifiable {
         self.headers = headers
         self.isLive = isLive
         self.startPosition = startPosition
+        self.enginePreference = enginePreference
     }
 }
 
@@ -68,7 +72,8 @@ public struct PlaybackResolver: Sendable {
             title: channel.name,
             artworkURL: channel.logoURL.flatMap(URL.init(string:)),
             headers: headers,
-            isLive: true
+            isLive: true,
+            enginePreference: source.enginePreference
         )
     }
 }

@@ -85,6 +85,12 @@ public final class AppDatabase: Sendable {
             try db.create(index: "channel_categoryID", on: Channel.databaseTableName, columns: ["categoryID"])
         }
 
+        migrator.registerMigration("v2") { db in
+            try db.alter(table: Source.databaseTableName) { t in
+                t.add(column: "enginePreference", .text).notNull().defaults(to: EnginePreference.automatic.rawValue)
+            }
+        }
+
         return migrator
     }
 }
@@ -100,6 +106,8 @@ extension Source: FetchableRecord, MutablePersistableRecord {
 }
 
 extension Source.Kind: DatabaseValueConvertible {}
+
+extension EnginePreference: DatabaseValueConvertible {}
 
 extension MediaCategory: FetchableRecord, MutablePersistableRecord {
     public static let databaseTableName = "mediaCategory"

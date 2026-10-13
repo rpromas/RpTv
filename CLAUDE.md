@@ -24,7 +24,9 @@ The UI test (`UITests/`) skips unless `TEST_RUNNER_RPTV_PLAYLIST_URL` points to 
 - A sync (`SourceSyncService`) replaces a source's live catalog in one transaction (`replaceLiveCatalog`). `stableKey` identifies channels across resyncs.
 - **Credentials never go in SQLite.** Xtream passwords live in the keychain (`CredentialStore`). Xtream stream URLs are built at play time by `PlaybackResolver`.
 - Xtream JSON is inconsistent between servers. Decode with the `lossy*` helpers in `Support/LossyDecoding.swift`.
-- Playback goes through the `PlayerEngine` protocol. `EngineSelector` picks AVPlayer (HLS/MP4) or VLC (TS/MKV/RTMP). The VLC engine is planned for Phase 2.
+- Playback goes through the `PlayerEngine` protocol. `PlaybackCoordinator` (in RpTvKit) picks the first engine (the source's `enginePreference`, then the engine that last worked for that item, then `EngineSelector` on the URL). It switches from AVPlayer to VLC when AVPlayer fails, or when a live stream hasn't started after 10 s. `PlayerScreen` renders whichever engine is active.
+- `VLCPlayerEngine` lives in the **app target** (`App/Sources/Features/Player/`), not RpTvKit, so `swift test` never downloads or links VLCKit. Keep VLCKit imports out of the package.
+- VLCKit comes from VideoLAN's official SPM binary target (`https://code.videolan.org/videolan/VLCKit.git`), pinned with `exactVersion` in `project.yml` (currently `4.0.0-a25`, an alpha, since only 4.x alphas ship via SPM). It's LGPL-2.1 and must stay dynamically linked. When bumping it, update the tag in `THIRD_PARTY_NOTICES.md` too.
 
 ## Conventions
 

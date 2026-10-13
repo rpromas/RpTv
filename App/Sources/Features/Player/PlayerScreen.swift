@@ -6,27 +6,32 @@ import AVKit
 import RpTvKit
 import SwiftUI
 
-/// Full-screen playback. Uses the system player UI for now, which brings PiP, AirPlay and
-/// Now Playing integration with it.
+/// Full-screen playback. AVPlayer streams use the system player UI for now, which brings PiP, AirPlay and
+/// Now Playing integration with it. VLC streams show bare video until custom controls arrive.
 struct PlayerScreen: View {
     let item: PlaybackItem
 
     @Environment(\.dismiss) private var dismiss
-    @State private var engine = AVPlayerEngine()
+    @State private var coordinator = PlaybackCoordinator { kind in
+        switch kind {
+        case .native: AVPlayerEngine()
+        case .vlc: VLCPlayerEngine()
+        }
+    }
 
     var body: some View {
         ZStack(alignment: .topLeading) {
             Color.black.ignoresSafeArea()
-            SystemPlayerView(player: engine.player)
+            video
                 .ignoresSafeArea()
 
-            if case .failed(let message) = engine.state {
+            if case .failed(let message) = coordinator.state {
                 ContentUnavailableView {
                     Label("Can't Play This Stream", systemImage: "exclamationmark.triangle")
                 } description: {
                     Text(message)
                 } actions: {
-                    Button("Try Again") { engine.load(item) }
+                    Button("Try Again") { coordinator.retry() }
                         .buttonStyle(.glass)
                 }
                 .foregroundStyle(.white)
@@ -45,8 +50,25 @@ struct PlayerScreen: View {
             .padding()
         }
         .preferredColorScheme(.dark)
-        .onAppear { engine.load(item) }
-        .onDisappear { engine.stop() }
+        .onAppear { coordinator.play(item) }
+        .onDisappear { coordinator.stop() }
+    }
+
+    @ViewBuilder private var video: some View {
+        if let engine = coordinator.engine as? AVPlayerEngine {
+            SystemPlayerView(player: engine.player)
+                .accessibilityIdentifier("nativeVideo")
+        } else if let engine = coordinator.engine as? VLCPlayerEngine {
+            VLCVideoSurface(engine: engine)
+                .accessibilityIdentifier("vlcVideo")
+                .overlay {
+                    if engine.state == .loading || engine.state == .buffering {
+                        ProgressView()
+                            .controlSize(.large)
+                            .tint(.white)
+                    }
+                }
+        }
     }
 }
 

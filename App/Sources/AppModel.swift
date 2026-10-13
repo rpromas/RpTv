@@ -169,6 +169,15 @@ final class AppModel {
         }
     }
 
+    func setEnginePreference(_ preference: EnginePreference, for source: Source) async {
+        guard let id = source.id else { return }
+        do {
+            try await database.modifySource(id: id) { $0.enginePreference = preference }
+        } catch {
+            alertMessage = error.localizedDescription
+        }
+    }
+
     func delete(_ source: Source) async {
         guard let id = source.id else { return }
         do {

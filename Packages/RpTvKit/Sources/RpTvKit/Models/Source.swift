@@ -27,6 +27,8 @@ public struct Source: Codable, Sendable, Hashable, Identifiable {
     public var referrer: String?
     /// Container used for Xtream live streams (`m3u8` or `ts`).
     public var liveFormat: String?
+    /// Which player engine plays this source's streams.
+    public var enginePreference: EnginePreference
     public var createdAt: Date
     public var lastSyncedAt: Date?
     public var lastSyncError: String?
@@ -43,6 +45,7 @@ public struct Source: Codable, Sendable, Hashable, Identifiable {
         userAgent: String? = nil,
         referrer: String? = nil,
         liveFormat: String? = nil,
+        enginePreference: EnginePreference = .automatic,
         createdAt: Date = .now,
         lastSyncedAt: Date? = nil,
         lastSyncError: String? = nil
@@ -58,6 +61,7 @@ public struct Source: Codable, Sendable, Hashable, Identifiable {
         self.userAgent = userAgent
         self.referrer = referrer
         self.liveFormat = liveFormat
+        self.enginePreference = enginePreference
         self.createdAt = createdAt
         self.lastSyncedAt = lastSyncedAt
         self.lastSyncError = lastSyncError

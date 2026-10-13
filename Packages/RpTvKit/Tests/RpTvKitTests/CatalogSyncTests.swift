@@ -92,6 +92,20 @@ struct CatalogSyncTests {
         let item = try PlaybackResolver(credentials: credentials).item(for: channels[0], in: saved)
         #expect(item.url.absoluteString == "http://example.com:8080/live/demo/secret/101.m3u8")
         #expect(item.isLive)
+        #expect(item.enginePreference == .automatic)
+    }
+
+    @Test func enginePreferenceSurvivesResyncAndReachesPlayback() async throws {
+        let source = try await database.insertSource(Source(name: "Local", kind: .m3u, location: "sample.m3u", isLocalFile: true))
+        #expect(source.enginePreference == .automatic)
+        try await database.modifySource(id: source.id!) { $0.enginePreference = .vlc }
+        try await service.sync(source)
+
+        let saved = try #require(try await database.source(id: source.id!))
+        #expect(saved.enginePreference == .vlc)
+        #expect(saved.lastSyncedAt != nil)
+        let channels = try await firstValue(database.observeChannels(sourceID: source.id!, categoryID: nil))
+        #expect(try PlaybackResolver(credentials: credentials).item(for: channels[0], in: saved).enginePreference == .vlc)
     }
 
     @Test func deletingSourceCascades() async throws {

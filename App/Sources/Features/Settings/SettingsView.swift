@@ -9,13 +9,14 @@ struct SettingsView: View {
     @Environment(AppModel.self) private var model
     @State private var isAddingSource = false
     @State private var sourcePendingDeletion: Source?
+    @State private var detailSourceID: Int64?
 
     var body: some View {
         NavigationStack {
             List {
                 Section("Sources") {
                     ForEach(model.sources) { source in
-                        SourceRow(source: source)
+                        SourceRow(source: source) { detailSourceID = source.id }
                             .swipeActions {
                                 Button("Delete", systemImage: "trash", role: .destructive) {
                                     sourcePendingDeletion = source
@@ -26,6 +27,7 @@ struct SettingsView: View {
                                 .tint(.blue)
                             }
                             .contextMenu {
+                                Button("Details", systemImage: "info.circle") { detailSourceID = source.id }
                                 Button("Refresh", systemImage: "arrow.clockwise") { refresh(source) }
                                 Button("Delete", systemImage: "trash", role: .destructive) {
                                     sourcePendingDeletion = source
@@ -47,6 +49,9 @@ struct SettingsView: View {
                 }
             }
             .navigationTitle("Settings")
+            .navigationDestination(item: $detailSourceID) { id in
+                SourceDetailView(sourceID: id)
+            }
             .sheet(isPresented: $isAddingSource) {
                 AddSourceView()
             }
@@ -79,6 +84,7 @@ struct SettingsView: View {
 
 private struct SourceRow: View {
     let source: Source
+    let showDetails: () -> Void
     @Environment(AppModel.self) private var model
 
     var body: some View {
@@ -105,6 +111,10 @@ private struct SourceRow: View {
             if let id = source.id, model.syncPhases[id] != nil {
                 ProgressView()
             }
+            Button("Details", systemImage: "info.circle", action: showDetails)
+                .labelStyle(.iconOnly)
+                .font(.title3)
+                .buttonStyle(.borderless)
         }
         .contentShape(.rect)
         .onTapGesture { model.activeSourceID = source.id }
@@ -127,12 +137,19 @@ private struct AcknowledgementsView: View {
     private let libraries: [(name: String, license: String, url: String)] = [
         ("GRDB.swift", "MIT License", "https://github.com/groue/GRDB.swift"),
         ("Nuke", "MIT License", "https://github.com/kean/Nuke"),
+        ("VLCKit", "LGPL 2.1", "https://code.videolan.org/videolan/VLCKit"),
     ]
 
     var body: some View {
-        List(libraries, id: \.name) { library in
-            Link(destination: URL(string: library.url)!) {
-                LabeledContent(library.name, value: library.license)
+        List {
+            Section {
+                ForEach(libraries, id: \.name) { library in
+                    Link(destination: URL(string: library.url)!) {
+                        LabeledContent(library.name, value: library.license)
+                    }
+                }
+            } footer: {
+                Text("VLCKit is linked dynamically. You can rebuild RpTv from its source code with a modified version of VLCKit. THIRD_PARTY_NOTICES.md in the RpTv repository explains how.")
             }
         }
         .navigationTitle("Acknowledgements")

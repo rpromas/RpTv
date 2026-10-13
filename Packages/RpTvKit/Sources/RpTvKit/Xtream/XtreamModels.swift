@@ -160,10 +160,12 @@ public struct XtreamVODStream: Decodable, Sendable, Hashable {
     public var categoryID: String?
     public var containerExtension: String?
     public var directSource: String?
+    /// Newer panels send the release year; older ones only have it in the name, if at all.
+    public var year: Int?
 
     enum CodingKeys: String, CodingKey {
         case number = "num"
-        case name, rating, added
+        case name, rating, added, year
         case streamID = "stream_id"
         case icon = "stream_icon"
         case categoryID = "category_id"
@@ -185,6 +187,7 @@ public struct XtreamVODStream: Decodable, Sendable, Hashable {
         categoryID = container.lossyString(.categoryID)
         containerExtension = container.lossyString(.containerExtension)
         directSource = container.lossyString(.directSource)
+        year = container.lossyInt(.year).flatMap { $0 > 1800 ? $0 : nil }
     }
 }
 

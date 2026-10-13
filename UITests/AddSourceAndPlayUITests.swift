@@ -126,6 +126,39 @@ final class AddSourceAndPlayUITests: XCTestCase {
         app.buttons["Close"].tap()
     }
 
+    /// The demo playlist's MP4 lands in Movies rather than among the channels, and plays with a scrubber.
+    @MainActor
+    func testBrowseAndPlayMovie() throws {
+        let app = try launchWithDemoPlaylist()
+        XCTAssertTrue(app.buttons["BipBop Advanced (fMP4)"].firstMatch.waitForExistence(timeout: 30))
+        XCTAssertFalse(app.buttons["Discover Observation in SwiftUI (2023)"].exists, "The movie is listed as a channel")
+
+        app.buttons["Movies"].firstMatch.tap()
+        let poster = app.buttons["Discover Observation in SwiftUI (2023), 2023"].firstMatch
+        XCTAssertTrue(poster.waitForExistence(timeout: 10), "The movie isn't in the grid")
+        attach(app, "Movies")
+        poster.tap()
+
+        let play = app.buttons["playMovieButton"]
+        XCTAssertTrue(play.waitForExistence(timeout: 5))
+        attach(app, "Movie details")
+        play.tap()
+
+        let video = app.descendants(matching: .any)["nativeVideo"]
+        XCTAssertTrue(video.waitForExistence(timeout: 10))
+        sleep(6)
+        XCTAssertFalse(app.staticTexts["Can't Play This Stream"].exists)
+        let playPause = showControls(app, over: video)
+        XCTAssertEqual(playPause.label, "Pause")
+        // A movie has an end: skips and a scrubber instead of channel buttons and LIVE.
+        XCTAssertTrue(app.buttons["Forward 10 Seconds"].exists)
+        XCTAssertTrue(app.sliders["Position"].exists)
+        XCTAssertFalse(app.buttons["nextChannelButton"].exists)
+        attach(app, "Movie player")
+        app.buttons["Close"].tap()
+        XCTAssertTrue(play.waitForExistence(timeout: 5))
+    }
+
     /// Waits for the window to finish rotating.
     @MainActor
     private func waitForLandscape(_ app: XCUIApplication, _ landscape: Bool) {

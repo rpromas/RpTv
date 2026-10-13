@@ -227,7 +227,7 @@ struct SyncProgressOverlay: View {
     private var detail: String? {
         switch phase {
         case .downloading(let count), .saving(let count), .finished(let count):
-            count > 0 ? "\(count.formatted()) channels" : nil
+            count > 0 ? "\(count.formatted()) items" : nil
         default:
             nil
         }

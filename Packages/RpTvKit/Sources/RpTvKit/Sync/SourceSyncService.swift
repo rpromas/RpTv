@@ -21,7 +21,7 @@ public enum SyncError: LocalizedError, Equatable {
         switch self {
         case .missingPassword: "The saved password for this account is missing. Edit the source and enter it again."
         case .invalidLocation: "The playlist address isn't valid."
-        case .emptyPlaylist: "The playlist doesn't contain any channels."
+        case .emptyPlaylist: "The playlist doesn't contain any channels or movies."
         }
     }
 }
@@ -49,28 +49,37 @@ public struct SourceSyncService: Sendable {
         self.http = http ?? session
     }
 
-    /// Refreshes a source and returns how many channels it now has. Records the outcome on the source.
+    /// Refreshes a source and returns how many channels and movies it now has. Records the outcome on the source.
     @discardableResult
     public func sync(_ source: Source, progress: @escaping @Sendable (SyncPhase) -> Void = { _ in }) async throws -> Int {
         guard let sourceID = source.id else { preconditionFailure("Sync requires a saved source") }
         progress(.connecting)
         do {
-            let catalog: LiveCatalog
+            let catalog: SourceCatalog
             switch source.kind {
             case .m3u: catalog = try await loadM3U(source, progress: progress)
             case .xtream: catalog = try await loadXtream(source, progress: progress)
             }
-            progress(.saving(itemCount: catalog.items.count))
-            try await database.replaceLiveCatalog(sourceID: sourceID, with: catalog)
+            progress(.saving(itemCount: catalog.itemCount))
+            try await database.replaceCatalog(sourceID: sourceID, with: catalog)
             try await database.recordSync(sourceID: sourceID, error: nil)
-            progress(.finished(itemCount: catalog.items.count))
-            return catalog.items.count
+            progress(.finished(itemCount: catalog.itemCount))
+            return catalog.itemCount
         } catch {
             if !(error is CancellationError) {
                 try? await database.recordSync(sourceID: sourceID, error: error.localizedDescription)
             }
             throw error
         }
+    }
+
+    /// Fetches a movie's details from the provider and caches them, if they're missing or over a week old.
+    /// Only Xtream movies have details; for the others this does nothing.
+    public func refreshDetails(of movie: Movie, in source: Source, now: Date = .now) async throws {
+        guard movie.needsDetails(now: now), let streamID = movie.xtreamStreamID, source.kind == .xtream else { return }
+        let client = XtreamClient(credentials: try xtreamCredentials(for: source), http: http, headers: source.httpHeaders)
+        let info = try await client.vodInfo(streamID: streamID)
+        try await database.saveMovieDetails(sourceID: movie.sourceID, stableKey: movie.stableKey, details: info, fetchedAt: now)
     }
 
     public func xtreamCredentials(for source: Source) throws -> XtreamCredentials {
@@ -87,7 +96,7 @@ public struct SourceSyncService: Sendable {
 
     // MARK: - M3U
 
-    private func loadM3U(_ source: Source, progress: @escaping @Sendable (SyncPhase) -> Void) async throws -> LiveCatalog {
+    private func loadM3U(_ source: Source, progress: @escaping @Sendable (SyncPhase) -> Void) async throws -> SourceCatalog {
         var parser = M3UParser()
         var builder = M3UCatalogBuilder()
 
@@ -125,7 +134,7 @@ public struct SourceSyncService: Sendable {
 
     // MARK: - Xtream
 
-    private func loadXtream(_ source: Source, progress: @escaping @Sendable (SyncPhase) -> Void) async throws -> LiveCatalog {
+    private func loadXtream(_ source: Source, progress: @escaping @Sendable (SyncPhase) -> Void) async throws -> SourceCatalog {
         let client = XtreamClient(credentials: try xtreamCredentials(for: source), http: http, headers: source.httpHeaders)
         let account = try await client.authenticate()
 
@@ -141,13 +150,47 @@ public struct SourceSyncService: Sendable {
 
         async let categories = client.liveCategories()
         async let streams = client.liveStreams()
+        async let movies = Self.xtreamMovies(client)
         let (liveCategories, liveStreams) = try await (categories, streams)
         progress(.downloading(itemCount: liveStreams.count))
-        return Self.xtreamCatalog(categories: liveCategories, streams: liveStreams)
+        let movieCatalog = await movies
+        progress(.downloading(itemCount: liveStreams.count + (movieCatalog?.items.count ?? 0)))
+        return SourceCatalog(live: Self.xtreamCatalog(categories: liveCategories, streams: liveStreams), movies: movieCatalog)
+    }
+
+    /// The account's movies, or `nil` when they couldn't be downloaded. Some accounts have live TV only and
+    /// their servers fail the movie calls, which mustn't stop the channels from updating.
+    private static func xtreamMovies(_ client: XtreamClient) async -> MovieCatalog? {
+        async let categories = client.vodCategories()
+        async let streams = client.vodStreams()
+        guard let (vodCategories, vodStreams) = try? await (categories, streams) else { return nil }
+        return xtreamMovieCatalog(categories: vodCategories, streams: vodStreams)
+    }
+
+    static func xtreamMovieCatalog(categories: [XtreamCategory], streams: [XtreamVODStream]) -> MovieCatalog {
+        let groups = categories.map { CatalogGroup(remoteID: $0.id, name: $0.name) }
+        let items = streams.enumerated().map { index, stream in
+            MovieCatalog.Item(
+                movie: Movie(
+                    sourceID: 0,
+                    stableKey: "xtream-movie:\(stream.streamID)",
+                    name: stream.name,
+                    posterURL: stream.icon,
+                    rating: stream.rating.flatMap { $0 > 0 ? $0 : nil },
+                    addedAt: stream.added,
+                    containerExtension: stream.containerExtension,
+                    xtreamStreamID: stream.streamID,
+                    year: stream.year ?? Movie.year(inTitle: stream.name),
+                    sortIndex: index
+                ),
+                groupRemoteID: stream.categoryID
+            )
+        }
+        return MovieCatalog(groups: groups, items: items)
     }
 
     static func xtreamCatalog(categories: [XtreamCategory], streams: [XtreamLiveStream]) -> LiveCatalog {
-        let groups = categories.map { LiveCatalog.Group(remoteID: $0.id, name: $0.name) }
+        let groups = categories.map { CatalogGroup(remoteID: $0.id, name: $0.name) }
         let items = streams.enumerated().map { index, stream in
             LiveCatalog.Item(
                 channel: Channel(
@@ -168,38 +211,70 @@ public struct SourceSyncService: Sendable {
     }
 }
 
-/// Turns M3U entries into a catalog, creating a category per `group-title` in order of first appearance.
+/// Turns M3U entries into a catalog: channels and movies, each with a category per `group-title` in order of
+/// first appearance.
 struct M3UCatalogBuilder {
     static let ungroupedID = ""
 
-    private(set) var groups: [LiveCatalog.Group] = []
-    private var knownGroups: Set<String> = []
-    private var items: [LiveCatalog.Item] = []
+    private var liveGroups = GroupList()
+    private var movieGroups = GroupList()
+    private var channels: [LiveCatalog.Item] = []
+    private var movies: [MovieCatalog.Item] = []
 
-    var count: Int { items.count }
+    var count: Int { channels.count + movies.count }
 
     mutating func add(_ entry: M3UEntry) {
         let groupID = entry.group ?? Self.ungroupedID
-        if knownGroups.insert(groupID).inserted {
-            groups.append(LiveCatalog.Group(remoteID: groupID, name: entry.group ?? "Uncategorized"))
+        let groupName = entry.group ?? "Uncategorized"
+        switch entry.contentKind {
+        case .live:
+            liveGroups.add(groupID, name: groupName)
+            let channel = Channel(
+                sourceID: 0,
+                stableKey: "m3u:\(entry.tvgID ?? "")|\(entry.name)|\(groupID)",
+                name: entry.name,
+                number: entry.channelNumber,
+                logoURL: entry.logo,
+                streamURL: entry.url,
+                epgChannelID: entry.tvgID,
+                catchupDays: entry.catchupDays,
+                catchupMode: entry.catchupMode,
+                catchupSource: entry.catchupSource,
+                userAgent: entry.userAgent,
+                referrer: entry.referrer,
+                sortIndex: channels.count
+            )
+            channels.append(LiveCatalog.Item(channel: channel, groupRemoteID: groupID))
+        case .movie:
+            movieGroups.add(groupID, name: groupName)
+            let fileExtension = ((URLComponents(string: entry.url)?.path ?? "") as NSString).pathExtension.lowercased()
+            let movie = Movie(
+                sourceID: 0,
+                stableKey: "m3u-movie:\(entry.name)|\(groupID)",
+                name: entry.name,
+                posterURL: entry.logo,
+                containerExtension: fileExtension.isEmpty ? nil : fileExtension,
+                streamURL: entry.url,
+                year: Movie.year(inTitle: entry.name),
+                userAgent: entry.userAgent,
+                referrer: entry.referrer,
+                sortIndex: movies.count
+            )
+            movies.append(MovieCatalog.Item(movie: movie, groupRemoteID: groupID))
         }
-        let channel = Channel(
-            sourceID: 0,
-            stableKey: "m3u:\(entry.tvgID ?? "")|\(entry.name)|\(groupID)",
-            name: entry.name,
-            number: entry.channelNumber,
-            logoURL: entry.logo,
-            streamURL: entry.url,
-            epgChannelID: entry.tvgID,
-            catchupDays: entry.catchupDays,
-            catchupMode: entry.catchupMode,
-            catchupSource: entry.catchupSource,
-            userAgent: entry.userAgent,
-            referrer: entry.referrer,
-            sortIndex: items.count
-        )
-        items.append(LiveCatalog.Item(channel: channel, groupRemoteID: groupID))
     }
 
-    var catalog: LiveCatalog { LiveCatalog(groups: groups, items: items) }
+    var catalog: SourceCatalog {
+        SourceCatalog(live: LiveCatalog(groups: liveGroups.groups, items: channels),
+                      movies: MovieCatalog(groups: movieGroups.groups, items: movies))
+    }
+
+    private struct GroupList {
+        private(set) var groups: [CatalogGroup] = []
+        private var known: Set<String> = []
+
+        mutating func add(_ id: String, name: String) {
+            if known.insert(id).inserted { groups.append(CatalogGroup(remoteID: id, name: name)) }
+        }
+    }
 }

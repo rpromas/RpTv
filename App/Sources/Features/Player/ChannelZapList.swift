@@ -20,9 +20,9 @@ struct ChannelZapList: View {
             .onChange(of: session.zapList.channels.count, initial: true) {
                 guard !hasScrolledToCurrent, session.zapList.currentIndex != nil else { return }
                 hasScrolledToCurrent = true
-                proxy.scrollTo(session.channel.stableKey, anchor: .center)
+                proxy.scrollTo(session.channel?.stableKey, anchor: .center)
             }
-            .onChange(of: session.channel.stableKey) { _, key in
+            .onChange(of: session.channel?.stableKey) { _, key in
                 withAnimation { proxy.scrollTo(key, anchor: .center) }
             }
         }
@@ -30,7 +30,7 @@ struct ChannelZapList: View {
 
     private func list(nowNext: [Int64: NowNext], now: Date) -> some View {
         List(session.zapList.channels, id: \.stableKey) { channel in
-            let isCurrent = channel.stableKey == session.channel.stableKey
+            let isCurrent = channel.stableKey == session.channel?.stableKey
             Button {
                 session.zap(to: channel)
             } label: {

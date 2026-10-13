@@ -27,6 +27,32 @@ public struct M3UEntry: Sendable, Hashable {
     public var logo: String? { (attributes["tvg-logo"] ?? attributes["logo"]).nonEmpty }
     public var channelNumber: Int? { (attributes["tvg-chno"] ?? attributes["channel-number"]).flatMap { Int($0) } }
 
+    /// What an entry holds. Series detection comes later; until then series episodes count as movies.
+    public enum ContentKind: Sendable, Hashable {
+        case live
+        case movie
+    }
+
+    /// Xtream `m3u_plus` playlists mix movies and series into the channel list. They show in the URL path
+    /// (`/movie/`, `/series/`), or as a file such as `.mp4` in a group that isn't a live one.
+    public var contentKind: ContentKind {
+        let path = (URLComponents(string: url)?.path ?? url).lowercased()
+        if path.contains("/movie/") || path.contains("/series/") { return .movie }
+        let fileExtension = (path as NSString).pathExtension
+        if Self.vodExtensions.contains(fileExtension), !Self.isLiveGroup(group) { return .movie }
+        return .live
+    }
+
+    /// File types that are recordings rather than streams. MPEG-TS (`.ts`) is left out: live channels use it.
+    static let vodExtensions: Set<String> = ["mp4", "m4v", "mkv", "avi", "mov", "wmv", "flv", "webm", "mpg", "mpeg", "divx", "ogv", "3gp"]
+
+    /// Groups like "Live Sports" or "24/7 Movies" hold channels that loop files, so their entries stay live.
+    static func isLiveGroup(_ group: String?) -> Bool {
+        guard let group = group?.lowercased() else { return false }
+        let words = group.split(whereSeparator: { !$0.isLetter && !$0.isNumber })
+        return words.contains("live") || group.contains("24/7")
+    }
+
     static let defaultCatchupDays = 7
 
     static func catchupDays(in attributes: [String: String]) -> Int? {

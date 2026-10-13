@@ -136,6 +136,38 @@ public final class AppDatabase: Sendable {
             }
         }
 
+        migrator.registerMigration("v5") { db in
+            try db.create(table: Movie.databaseTableName) { t in
+                t.autoIncrementedPrimaryKey("id")
+                t.column("sourceID", .integer).notNull().references(Source.databaseTableName, onDelete: .cascade)
+                t.column("categoryID", .integer).references(MediaCategory.databaseTableName, onDelete: .setNull)
+                t.column("stableKey", .text).notNull()
+                t.column("name", .text).notNull()
+                t.column("posterURL", .text)
+                t.column("rating", .double)
+                t.column("addedAt", .datetime)
+                t.column("containerExtension", .text)
+                t.column("xtreamStreamID", .integer)
+                t.column("streamURL", .text)
+                t.column("year", .integer)
+                t.column("userAgent", .text)
+                t.column("referrer", .text)
+                t.column("sortIndex", .integer).notNull()
+                t.column("plot", .text)
+                t.column("cast", .text)
+                t.column("director", .text)
+                t.column("genre", .text)
+                t.column("durationSeconds", .integer)
+                t.column("backdropURL", .text)
+                t.column("trailer", .text)
+                t.column("detailsFetchedAt", .datetime)
+            }
+            try db.create(index: "movie_source_category", on: Movie.databaseTableName,
+                          columns: ["sourceID", "categoryID", "sortIndex"])
+            try db.create(index: "movie_categoryID", on: Movie.databaseTableName, columns: ["categoryID"])
+            try db.create(index: "movie_source_stableKey", on: Movie.databaseTableName, columns: ["sourceID", "stableKey"])
+        }
+
         return migrator
     }
 }
@@ -170,6 +202,18 @@ extension Channel: FetchableRecord, MutablePersistableRecord {
     public mutating func didInsert(_ inserted: InsertionSuccess) {
         id = inserted.rowID
     }
+}
+
+extension Movie: FetchableRecord, MutablePersistableRecord {
+    public static let databaseTableName = "movie"
+
+    public mutating func didInsert(_ inserted: InsertionSuccess) {
+        id = inserted.rowID
+    }
+}
+
+extension MovieSummary: FetchableRecord {
+    static let columns = ["id", "sourceID", "stableKey", "name", "posterURL", "rating", "year"].map { Column($0) }
 }
 
 extension GuideChannel: FetchableRecord, PersistableRecord {

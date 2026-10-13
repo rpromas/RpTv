@@ -93,24 +93,52 @@ struct ChannelTitle: View {
 }
 
 /// The playing channel's title with what's on: the programme playing from the archive, or the one on air now
-/// with its progress. `fallback` is the second line when the guide has nothing.
+/// with its progress. `fallback` is the second line when the guide has nothing. For a movie, its title.
 struct NowPlayingTitle: View {
     let session: PlayerSession
     let fallback: String?
     var logoSize = CGSize(width: 48, height: 34)
 
     var body: some View {
-        if let programme = session.catchupProgramme {
-            ChannelTitle(channel: session.channel,
-                         subtitle: "\(programme.title) · \(programme.start.formatted(.dateTime.weekday().hour().minute()))",
-                         logoSize: logoSize)
-        } else {
-            let channelIDs = session.channel.id.map { [$0] } ?? []
-            NowNextReader(database: session.database, channelIDs: channelIDs) { nowNext, now in
-                let current = session.channel.id.flatMap { nowNext[$0]?.now }
-                ChannelTitle(channel: session.channel, subtitle: current?.title ?? fallback,
-                             progress: current?.progress(at: now), logoSize: logoSize)
+        if let movie = session.movie {
+            MovieTitle(movie: movie, posterWidth: logoSize.height)
+        } else if let channel = session.channel {
+            if let programme = session.catchupProgramme {
+                ChannelTitle(channel: channel,
+                             subtitle: "\(programme.title) · \(programme.start.formatted(.dateTime.weekday().hour().minute()))",
+                             logoSize: logoSize)
+            } else {
+                let channelIDs = channel.id.map { [$0] } ?? []
+                NowNextReader(database: session.database, channelIDs: channelIDs) { nowNext, now in
+                    let current = channel.id.flatMap { nowNext[$0]?.now }
+                    ChannelTitle(channel: channel, subtitle: current?.title ?? fallback,
+                                 progress: current?.progress(at: now), logoSize: logoSize)
+                }
             }
+        }
+    }
+}
+
+/// A small poster, the movie's name, and its year and genre.
+struct MovieTitle: View {
+    let movie: Movie
+    /// The poster is half as tall again.
+    var posterWidth: CGFloat = 34
+
+    var body: some View {
+        HStack(spacing: 12) {
+            PosterImage(url: movie.posterURL, title: "", width: posterWidth)
+                .frame(width: posterWidth)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(movie.name)
+                    .font(.headline)
+                if let subtitle = movie.factsLine {
+                    Text(subtitle)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .lineLimit(1)
         }
     }
 }
@@ -126,13 +154,15 @@ struct PlayerTransport: View {
         let sideSize: CGFloat = compact ? 36 : 44
         GlassEffectContainer(spacing: 24) {
             HStack(spacing: compact ? 28 : 48) {
-                if let engine = session.coordinator.engine, engine.duration != nil {
+                let engine = session.coordinator.engine
+                // A movie skips even before its length is known.
+                if engine?.duration != nil || session.movie != nil {
                     PlayerIconButton(title: "Back 10 Seconds", systemImage: "gobackward.10", size: sideSize) {
-                        skip(engine, by: -10)
+                        if let engine { skip(engine, by: -10) }
                     }
                     PlayPauseButton(engine: engine, size: compact ? 48 : 60)
                     PlayerIconButton(title: "Forward 10 Seconds", systemImage: "goforward.10", size: sideSize) {
-                        skip(engine, by: 10)
+                        if let engine { skip(engine, by: 10) }
                     }
                 } else {
                     PlayerIconButton(title: "Previous Channel", systemImage: "backward.end.fill", size: sideSize) {
@@ -204,6 +234,8 @@ struct PlayerBottomBar: View {
                 SpeedMenu(engine: engine)
             } else if session.catchupProgramme != nil {
                 CatchupBadge()
+                Spacer(minLength: 0)
+            } else if session.movie != nil {
                 Spacer(minLength: 0)
             } else {
                 LiveBadge(isPaused: session.coordinator.state == .paused)

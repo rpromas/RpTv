@@ -8,7 +8,7 @@ http://stream.example.com/live/news1.m3u8
 http://stream.example.com/live/sport2.ts
 #EXTINF:0 tvg-logo=http://logo.example.com/plain.png,Unquoted Logo
 #EXTGRP:Movies
-http://stream.example.com/vod/movie.mp4
+http://stream.example.com/live/plain.m3u8
 #EXTINF:-1 tvg-name="Name From Attr",
 http://stream.example.com/live/attrname.m3u8
 #KODIPROP:inputstream=whatever

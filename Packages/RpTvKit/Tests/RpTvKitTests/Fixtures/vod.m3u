@@ -1,0 +1,18 @@
+#EXTM3U
+#EXTINF:-1 tvg-id="news.one" tvg-logo="http://logo.example.com/n1.png" group-title="News",News One
+http://stream.example.com/live/news1.m3u8
+#EXTINF:-1 tvg-logo="http://img.example.com/heat.jpg" group-title="Movies: Action",Heat (1995)
+http://provider.example.com/movie/user/pass/9001.mkv
+#EXTINF:-1 group-title="Movies: Action",Ronin - 1998
+#EXTVLCOPT:http-user-agent=VODAgent/2.0
+http://cdn.example.com/films/ronin.mp4?token=abc
+#EXTINF:-1 group-title="Series: Drama",A Show S01 E01
+http://provider.example.com/series/user/pass/7001.mp4
+#EXTINF:-1 group-title="24/7 Channels",Looping Classics
+http://cdn.example.com/loops/classics.mp4
+#EXTINF:-1 group-title="Live Events",Concert Feed
+http://cdn.example.com/events/concert.mkv
+#EXTINF:-1 group-title="Documentaries",Ocean Life
+http://cdn.example.com/docs/ocean.MP4
+#EXTINF:-1 group-title="News",News Two
+http://stream.example.com/live/news2.ts

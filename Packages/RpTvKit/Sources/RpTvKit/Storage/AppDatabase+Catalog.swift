@@ -13,18 +13,19 @@ public struct CategorySummary: Sendable, Hashable, Identifiable {
     public var id: Int64? { category.id }
 }
 
+/// A category as the provider lists it, before it's saved.
+public struct CatalogGroup: Sendable, Hashable {
+    public var remoteID: String
+    public var name: String
+
+    public init(remoteID: String, name: String) {
+        self.remoteID = remoteID
+        self.name = name
+    }
+}
+
 /// The live channels of one source, ready to replace what the database holds.
 public struct LiveCatalog: Sendable {
-    public struct Group: Sendable, Hashable {
-        public var remoteID: String
-        public var name: String
-
-        public init(remoteID: String, name: String) {
-            self.remoteID = remoteID
-            self.name = name
-        }
-    }
-
     public struct Item: Sendable {
         /// The channel. Its `sourceID` and `categoryID` are filled in when the catalog is saved.
         public var channel: Channel
@@ -36,13 +37,49 @@ public struct LiveCatalog: Sendable {
         }
     }
 
-    public var groups: [Group]
+    public var groups: [CatalogGroup]
     public var items: [Item]
 
-    public init(groups: [Group], items: [Item]) {
+    public init(groups: [CatalogGroup], items: [Item]) {
         self.groups = groups
         self.items = items
     }
+}
+
+/// The movies of one source, ready to replace what the database holds.
+public struct MovieCatalog: Sendable {
+    public struct Item: Sendable {
+        /// The movie. Its `sourceID` and `categoryID` are filled in when the catalog is saved.
+        public var movie: Movie
+        public var groupRemoteID: String?
+
+        public init(movie: Movie, groupRemoteID: String?) {
+            self.movie = movie
+            self.groupRemoteID = groupRemoteID
+        }
+    }
+
+    public var groups: [CatalogGroup]
+    public var items: [Item]
+
+    public init(groups: [CatalogGroup], items: [Item]) {
+        self.groups = groups
+        self.items = items
+    }
+}
+
+/// Everything a sync downloaded for one source.
+public struct SourceCatalog: Sendable {
+    public var live: LiveCatalog
+    /// `nil` leaves the movies the database has as they are, for when they couldn't be downloaded.
+    public var movies: MovieCatalog?
+
+    public init(live: LiveCatalog, movies: MovieCatalog?) {
+        self.live = live
+        self.movies = movies
+    }
+
+    public var itemCount: Int { live.items.count + (movies?.items.count ?? 0) }
 }
 
 // MARK: - Writes
@@ -83,42 +120,79 @@ extension AppDatabase {
         }
     }
 
-    /// Atomically swaps a source's live channels for `catalog`. Readers keep seeing the old catalog until
-    /// the transaction commits. Categories the user hid stay hidden, guide overrides stay on their channels,
-    /// and channels are matched to the guide the source already has.
+    /// Atomically swaps a source's live channels for `catalog`. See ``replaceCatalog(sourceID:with:)``.
     public func replaceLiveCatalog(sourceID: Int64, with catalog: LiveCatalog) async throws {
+        try await writer.write { db in try Self.replaceLiveCatalog(db, sourceID: sourceID, with: catalog) }
+    }
+
+    /// Atomically swaps a source's catalog for `catalog`. Readers keep seeing the old catalog until the
+    /// transaction commits. Categories the user hid stay hidden, guide overrides stay on their channels,
+    /// channels are matched to the guide the source already has, and movies keep their cached details.
+    public func replaceCatalog(sourceID: Int64, with catalog: SourceCatalog) async throws {
         try await writer.write { db in
-            let liveCategories = MediaCategory
-                .filter(Column("sourceID") == sourceID && Column("kind") == MediaCategory.Kind.live)
-            let hiddenRemoteIDs = try Set(String.fetchAll(db, liveCategories.filter(Column("isHidden") == true).select(Column("remoteID"))))
-
-            let overrides = try Dictionary(
-                Row.fetchAll(db, sql: "SELECT stableKey, epgOverride FROM channel WHERE sourceID = ? AND epgOverride IS NOT NULL",
-                             arguments: [sourceID]).map { ($0["stableKey"] as String, $0["epgOverride"] as String) },
-                uniquingKeysWith: { first, _ in first })
-
-            try Channel.filter(Column("sourceID") == sourceID).deleteAll(db)
-            try liveCategories.deleteAll(db)
-
-            var categoryIDs: [String: Int64] = [:]
-            for (index, group) in catalog.groups.enumerated() where categoryIDs[group.remoteID] == nil {
-                var category = MediaCategory(sourceID: sourceID, kind: .live, remoteID: group.remoteID, name: group.name,
-                                             sortIndex: index, isHidden: hiddenRemoteIDs.contains(group.remoteID))
-                try category.insert(db)
-                categoryIDs[group.remoteID] = category.id
+            try Self.replaceLiveCatalog(db, sourceID: sourceID, with: catalog.live)
+            if let movies = catalog.movies {
+                try Self.replaceMovieCatalog(db, sourceID: sourceID, with: movies)
             }
-
-            for item in catalog.items {
-                var channel = item.channel
-                channel.sourceID = sourceID
-                channel.categoryID = item.groupRemoteID.flatMap { categoryIDs[$0] }
-                channel.epgOverride = overrides[channel.stableKey]
-                channel.guideID = nil
-                try channel.insert(db)
-            }
-
-            try Self.resolveGuideIDs(db, sourceID: sourceID)
         }
+    }
+
+    private static func replaceLiveCatalog(_ db: Database, sourceID: Int64, with catalog: LiveCatalog) throws {
+        let overrides = try Dictionary(
+            Row.fetchAll(db, sql: "SELECT stableKey, epgOverride FROM channel WHERE sourceID = ? AND epgOverride IS NOT NULL",
+                         arguments: [sourceID]).map { ($0["stableKey"] as String, $0["epgOverride"] as String) },
+            uniquingKeysWith: { first, _ in first })
+
+        try Channel.filter(Column("sourceID") == sourceID).deleteAll(db)
+        let categoryIDs = try replaceCategories(db, sourceID: sourceID, kind: .live, with: catalog.groups)
+
+        for item in catalog.items {
+            var channel = item.channel
+            channel.sourceID = sourceID
+            channel.categoryID = item.groupRemoteID.flatMap { categoryIDs[$0] }
+            channel.epgOverride = overrides[channel.stableKey]
+            channel.guideID = nil
+            try channel.insert(db)
+        }
+
+        try resolveGuideIDs(db, sourceID: sourceID)
+    }
+
+    private static func replaceMovieCatalog(_ db: Database, sourceID: Int64, with catalog: MovieCatalog) throws {
+        // Details are only fetched when a movie is opened, so they're carried over rather than lost on every sync.
+        let cached = try Dictionary(
+            Movie.filter(Column("sourceID") == sourceID && Column("detailsFetchedAt") != nil).fetchAll(db)
+                .map { ($0.stableKey, $0) },
+            uniquingKeysWith: { first, _ in first })
+
+        try Movie.filter(Column("sourceID") == sourceID).deleteAll(db)
+        let categoryIDs = try replaceCategories(db, sourceID: sourceID, kind: .movie, with: catalog.groups)
+
+        for item in catalog.items {
+            var movie = item.movie
+            movie.sourceID = sourceID
+            movie.categoryID = item.groupRemoteID.flatMap { categoryIDs[$0] }
+            if let details = cached[movie.stableKey] { movie.keepDetails(of: details) }
+            try movie.insert(db)
+        }
+    }
+
+    /// Replaces a source's categories of one kind, keeping the ones the user hid hidden.
+    /// Returns the new category ids by remote id.
+    private static func replaceCategories(_ db: Database, sourceID: Int64, kind: MediaCategory.Kind,
+                                          with groups: [CatalogGroup]) throws -> [String: Int64] {
+        let existing = MediaCategory.filter(Column("sourceID") == sourceID && Column("kind") == kind)
+        let hiddenRemoteIDs = try Set(String.fetchAll(db, existing.filter(Column("isHidden") == true).select(Column("remoteID"))))
+        try existing.deleteAll(db)
+
+        var categoryIDs: [String: Int64] = [:]
+        for (index, group) in groups.enumerated() where categoryIDs[group.remoteID] == nil {
+            var category = MediaCategory(sourceID: sourceID, kind: kind, remoteID: group.remoteID, name: group.name,
+                                         sortIndex: index, isHidden: hiddenRemoteIDs.contains(group.remoteID))
+            try category.insert(db)
+            categoryIDs[group.remoteID] = category.id
+        }
+        return categoryIDs
     }
 }
 
@@ -135,15 +209,20 @@ extension AppDatabase {
 
     /// Visible live categories of a source, each with its channel count. Empty categories are skipped.
     public func observeLiveCategories(sourceID: Int64) -> AsyncThrowingStream<[CategorySummary], Error> {
+        observeCategories(sourceID: sourceID, kind: .live, itemTable: Channel.databaseTableName)
+    }
+
+    /// Visible categories of one kind, each with the number of items in `itemTable`. Empty categories are skipped.
+    func observeCategories(sourceID: Int64, kind: MediaCategory.Kind, itemTable: String) -> AsyncThrowingStream<[CategorySummary], Error> {
         observe { db in
             let rows = try Row.fetchAll(db, sql: """
-                SELECT mediaCategory.*, COUNT(channel.id) AS itemCount
+                SELECT mediaCategory.*, COUNT(item.id) AS itemCount
                 FROM mediaCategory
-                JOIN channel ON channel.categoryID = mediaCategory.id
+                JOIN \(itemTable) AS item ON item.categoryID = mediaCategory.id
                 WHERE mediaCategory.sourceID = ? AND mediaCategory.kind = ? AND mediaCategory.isHidden = 0
                 GROUP BY mediaCategory.id
                 ORDER BY mediaCategory.sortIndex
-                """, arguments: [sourceID, MediaCategory.Kind.live])
+                """, arguments: [sourceID, kind])
             return try rows.map { CategorySummary(category: try MediaCategory(row: $0), itemCount: $0["itemCount"]) }
         }
     }

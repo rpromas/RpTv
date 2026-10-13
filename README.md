@@ -8,6 +8,7 @@ A free, open-source IPTV player for iPhone and iPad, built with SwiftUI for iOS 
 
 - **Sources:** M3U/M3U8 playlists (by URL or imported file) and Xtream Codes accounts. Keep several sources and switch between them.
 - **Live TV:** categories and channels in a split view (sidebar on iPad, stack on iPhone), search, and channel logos.
+- **Movies:** Xtream VOD, and the movies an M3U playlist mixes in with its channels. A poster grid by category, sorted by date added, name or rating, with search, and a details screen (plot, cast, runtime, trailer).
 - **TV guide:** XMLTV guides (from the playlist, the Xtream account, or a URL you set), now/next on every channel, and a guide grid with programme details and reminders.
 - **Catch-up:** watch past programmes from the provider's archive: Xtream timeshift, and M3U `catchup` modes (`default`, `append`, `shift`, `flussonic`).
 - **Playback:** the native AVPlayer engine with Picture in Picture, AirPlay and background audio, and VLC for raw MPEG-TS, MKV, RTMP and other formats AVPlayer can't play. RpTv picks the engine per stream and switches to VLC automatically when the native player fails. You can also force one engine per source.
@@ -20,7 +21,9 @@ A free, open-source IPTV player for iPhone and iPad, built with SwiftUI for iOS 
   - [x] VLCKit engine with automatic fallback for MPEG-TS/MKV.
   - [x] Custom controls, track selection, channel zapping, AirPlay bridge.
 - [x] Phase 3: TV guide (XMLTV). Now/next, EPG grid, catch-up.
-- [ ] Phase 4: movies and series. Continue Watching.
+- [ ] Phase 4: movies and series.
+  - [x] Movies (VOD).
+  - [ ] Series and Continue Watching.
 - [ ] Phase 5: favorites, global search, category management, parental controls.
 
 ## Building
@@ -69,14 +72,14 @@ TEST_RUNNER_RPTV_GUIDE_PLAYLIST_URL=http://127.0.0.1:8765/playlist.m3u \
 
 `testTransportStreamPlaysThroughBridge` launches with `--prefer-bridge`, which turns the AirPlay bridge on without AirPlay (the simulator has none).
 
-`Support/demo-playlist.m3u` contains only Apple's public sample streams: HLS, plus one raw MPEG-TS segment that exercises the VLC engine. It also serves as the demo source for App Review.
+`Support/demo-playlist.m3u` contains only Apple's public sample streams: HLS, plus one raw MPEG-TS segment that exercises the VLC engine, and a WWDC session MP4 that shows up under Movies. It also serves as the demo source for App Review.
 
 ## Project layout
 
 ```
 App/                 iOS app target: SwiftUI screens and app state
 Packages/RpTvKit/    Core library, platform independent and unit tested
-  Models/            Source, MediaCategory, Channel, Programme
+  Models/            Source, MediaCategory, Channel, Movie, Programme
   M3U/               Streaming M3U parser
   EPG/               XMLTV parser, guide matching, guide grid time scale
   Xtream/            Xtream Codes API client (tolerant of messy server JSON)

@@ -216,6 +216,15 @@ struct PlayerScreen: View {
             if session.context != nil {
                 ChannelZapList(session: session)
                     .contentMargins(.bottom, bottomInset, for: .scrollContent)
+            } else if let movie = session.movie, let plot = movie.plot {
+                ScrollView {
+                    Text(plot)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(16)
+                }
+                .contentMargins(.bottom, bottomInset, for: .scrollContent)
             } else {
                 Spacer()
             }

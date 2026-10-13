@@ -261,6 +261,22 @@ final class AppModel {
         }
     }
 
+    /// Opens the player on a movie.
+    func play(_ movie: Movie) {
+        guard let source = sources.first(where: { $0.id == movie.sourceID }) else { return }
+        do {
+            playerSession = try PlayerSession(movie: movie, source: source, database: database, resolver: resolver)
+        } catch {
+            alertMessage = error.localizedDescription
+        }
+    }
+
+    /// Fetches a movie's details from its provider when they're missing or over a week old.
+    func refreshDetails(of movie: Movie) async throws {
+        guard let source = sources.first(where: { $0.id == movie.sourceID }) else { return }
+        try await syncService.refreshDetails(of: movie, in: source)
+    }
+
     /// Plays a channel a reminder points at, zapping through all of its source's channels.
     private func openChannel(sourceID: Int64, stableKey: String) async {
         guard let channel = try? await database.channel(sourceID: sourceID, stableKey: stableKey) else { return }

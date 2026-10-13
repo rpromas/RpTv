@@ -82,7 +82,7 @@ struct CatalogSyncTests {
     @Test func syncsXtreamAndResolvesPlaybackURLs() async throws {
         let source = try await database.insertSource(Source(name: "Xtream", kind: .xtream, location: "http://example.com:8080",
                                                             username: "demo", credentialKey: "xtream-key"))
-        #expect(try await service.sync(source) == 2)
+        #expect(try await service.sync(source) == 3) // two channels and a movie
 
         let saved = try #require(try await database.source(id: source.id!))
         #expect(saved.liveFormat == "m3u8")

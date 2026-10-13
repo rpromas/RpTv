@@ -20,7 +20,10 @@ struct ChannelListContext: Hashable {
 final class PlayerSession: Identifiable {
     let coordinator: PlaybackCoordinator
     let context: ChannelListContext?
-    private(set) var channel: Channel
+    /// The channel playing, or nil for a movie.
+    private(set) var channel: Channel?
+    /// The movie playing, or nil for a channel.
+    let movie: Movie?
     /// The programme playing from the archive, or nil when the channel is playing live.
     private(set) var catchupProgramme: Programme?
     private(set) var zapList: ZapList
@@ -38,13 +41,31 @@ final class PlayerSession: Identifiable {
         self.firstItem = try catchup.map { try resolver.catchupItem(for: channel, programme: $0, in: source) }
             ?? resolver.item(for: channel, in: source)
         self.channel = channel
+        self.movie = nil
         self.catchupProgramme = catchup
         self.source = source
         self.context = context
         self.database = database
         self.resolver = resolver
         self.zapList = ZapList(channels: [channel], currentKey: channel.stableKey)
-        self.coordinator = PlaybackCoordinator { kind in
+        self.coordinator = Self.makeCoordinator()
+    }
+
+    /// Plays a movie. There's nothing to zap to.
+    init(movie: Movie, source: Source, database: AppDatabase, resolver: PlaybackResolver) throws {
+        self.firstItem = try resolver.item(for: movie, in: source)
+        self.channel = nil
+        self.movie = movie
+        self.source = source
+        self.context = nil
+        self.database = database
+        self.resolver = resolver
+        self.zapList = ZapList(channels: [], currentKey: movie.stableKey)
+        self.coordinator = Self.makeCoordinator()
+    }
+
+    private static func makeCoordinator() -> PlaybackCoordinator {
+        PlaybackCoordinator { kind in
             switch kind {
             case .native: AVPlayerEngine()
             case .vlc: VLCPlayerEngine()
@@ -69,7 +90,7 @@ final class PlayerSession: Identifiable {
 
     /// Plays `channel` live. Picking the channel that's playing from the archive goes back to live.
     func zap(to channel: Channel) {
-        guard channel.stableKey != self.channel.stableKey || catchupProgramme != nil else { return }
+        guard movie == nil, channel.stableKey != self.channel?.stableKey || catchupProgramme != nil else { return }
         do {
             let item = try resolver.item(for: channel, in: source)
             self.channel = channel
@@ -84,7 +105,7 @@ final class PlayerSession: Identifiable {
 
     /// Leaves the archive for the live stream of the same channel.
     func goLive() {
-        zap(to: channel)
+        if let channel { zap(to: channel) }
     }
 
     /// Keeps ``zapList`` in step with the catalog. Runs while the player is on screen.

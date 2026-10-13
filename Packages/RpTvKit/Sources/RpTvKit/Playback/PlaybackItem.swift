@@ -60,6 +60,31 @@ public struct PlaybackResolver: Sendable {
         return makeItem(id: channel.stableKey, url: url, channel: channel, source: source, isLive: true)
     }
 
+    /// A movie, from the start. Not live, so the player shows a scrubber.
+    public func item(for movie: Movie, in source: Source) throws -> PlaybackItem {
+        let url: URL
+        if let streamID = movie.xtreamStreamID {
+            url = try SourceSyncService.xtreamCredentials(for: source, in: credentials)
+                .movieURL(streamID: streamID, containerExtension: movie.containerExtension)
+        } else {
+            guard let streamURL = movie.streamURL.flatMap(URL.init(string:)) else { throw SyncError.invalidLocation }
+            url = streamURL
+        }
+        var headers = source.httpHeaders
+        if let userAgent = movie.userAgent { headers["User-Agent"] = userAgent }
+        if let referrer = movie.referrer { headers["Referer"] = referrer }
+        return PlaybackItem(
+            id: movie.stableKey,
+            url: url,
+            title: movie.name,
+            subtitle: movie.year.map(String.init),
+            artworkURL: movie.posterURL.flatMap(URL.init(string:)),
+            headers: headers,
+            isLive: false,
+            enginePreference: source.enginePreference
+        )
+    }
+
     /// The archive of `programme` on `channel`, from its start. A programme with no known end counts as
     /// lasting an hour. Throws ``CatchupError/unavailable`` when the channel has no usable archive.
     public func catchupItem(for channel: Channel, programme: Programme, in source: Source,

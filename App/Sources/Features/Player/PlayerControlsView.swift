@@ -250,9 +250,6 @@ struct PlayerBottomBar: View {
                     .labelStyle(.titleAndIcon)
                     .accessibilityIdentifier("goLiveButton")
             }
-            if compact, let engine = session.coordinator.engine {
-                AspectButton(engine: engine, glass: false)
-            }
             if let onToggleFullScreen {
                 PlayerIconButton(
                     title: compact ? "Full Screen" : "Exit Full Screen",

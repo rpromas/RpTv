@@ -32,6 +32,8 @@ final class AppModel {
     var playerSession: PlayerSession?
     /// A user-facing error to show in an alert.
     var alertMessage: String?
+    /// Whether the Add Source sheet is up. `RootView` presents it, so it can blur the whole app behind it on Mac.
+    var isAddingSource = false
 
     var activeSourceID: Int64? {
         didSet { UserDefaults.standard.set(activeSourceID, forKey: Self.activeSourceKey) }

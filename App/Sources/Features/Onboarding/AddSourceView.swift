@@ -55,7 +55,7 @@ struct AddSourceView: View {
 
                 Section("Advanced") {
                     if method != .xtream {
-                        TextField("EPG URL (optional)", text: $epgURL)
+                        TextField("EPG URL", text: $epgURL, prompt: placeholder("EPG URL (optional)"))
                             .textContentType(.URL)
                             .keyboardType(.URL)
                             .textInputAutocapitalization(.never)
@@ -100,7 +100,7 @@ struct AddSourceView: View {
 
     private var xtreamFields: some View {
         Section {
-            TextField("Server (http://example.com:8080)", text: $server)
+            TextField("Server", text: $server, prompt: placeholder("Server (http://example.com:8080)"))
                 .textContentType(.URL)
                 .keyboardType(.URL)
                 .textInputAutocapitalization(.never)
@@ -118,7 +118,7 @@ struct AddSourceView: View {
 
     private var playlistURLFields: some View {
         Section {
-            TextField("http://example.com/playlist.m3u", text: $playlistURL)
+            TextField("Playlist URL", text: $playlistURL, prompt: placeholder("http://example.com/playlist.m3u"))
                 .accessibilityIdentifier("playlistURLField")
                 .textContentType(.URL)
                 .keyboardType(.URL)
@@ -155,6 +155,11 @@ struct AddSourceView: View {
         } footer: {
             Text("Import an .m3u file from Files. RpTv keeps its own copy.")
         }
+    }
+
+    /// Placeholder text, kept gray so it never reads as an entered value (on Mac it otherwise can).
+    private func placeholder(_ text: String) -> Text {
+        Text(text).foregroundStyle(.secondary)
     }
 
     private var canSubmit: Bool {

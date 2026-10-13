@@ -18,6 +18,9 @@ struct RootView: View {
                 MainTabView()
             }
         }
+        // On Mac the sheet is a small window-centered card; soften the app behind it so it stands out.
+        .blur(radius: Self.blursBehindSheets && model.isAddingSource ? 8 : 0)
+        .animation(.easeInOut(duration: 0.25), value: model.isAddingSource)
         .task { await model.observeSources() }
         .task { await model.observeFavorites() }
         .task(id: model.hasLoadedSources) {
@@ -30,8 +33,14 @@ struct RootView: View {
         .task(id: model.hasLoadedSources) {
             if model.hasLoadedSources { await model.refreshStaleGuides() }
         }
+        .sheet(isPresented: $model.isAddingSource) {
+            AddSourceView()
+        }
         .fullScreenCover(item: $model.playerSession) { session in
+            // Pass the model explicitly: the cover's content doesn't reliably inherit it, and the player's
+            // favorite button and channel list read it.
             PlayerScreen(session: session)
+                .environment(model)
         }
         .alert("Something went wrong", isPresented: .init(
             get: { model.alertMessage != nil },
@@ -42,6 +51,8 @@ struct RootView: View {
             Text(model.alertMessage ?? "")
         }
     }
+
+    private static let blursBehindSheets = ProcessInfo.processInfo.isiOSAppOnMac || ProcessInfo.processInfo.isMacCatalystApp
 }
 
 struct MainTabView: View {

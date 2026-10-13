@@ -7,7 +7,6 @@ import SwiftUI
 
 struct SettingsView: View {
     @Environment(AppModel.self) private var model
-    @State private var isAddingSource = false
     @State private var sourcePendingDeletion: Source?
     @State private var detailSourceID: Int64?
     @AppStorage(AppModel.resumeLastChannelKey) private var resumesLastChannel = false
@@ -36,7 +35,7 @@ struct SettingsView: View {
                             }
                     }
                     Button("Add Source", systemImage: "plus") {
-                        isAddingSource = true
+                        model.isAddingSource = true
                     }
                 }
 
@@ -60,9 +59,6 @@ struct SettingsView: View {
             .navigationTitle("Settings")
             .navigationDestination(item: $detailSourceID) { id in
                 SourceDetailView(sourceID: id)
-            }
-            .sheet(isPresented: $isAddingSource) {
-                AddSourceView()
             }
             .confirmationDialog(
                 "Delete \(sourcePendingDeletion?.name ?? "source")?",

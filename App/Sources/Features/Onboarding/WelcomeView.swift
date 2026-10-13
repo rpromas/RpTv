@@ -6,7 +6,7 @@ import SwiftUI
 
 /// First-run screen. The app ships without content, so the only way forward is adding a source.
 struct WelcomeView: View {
-    @State private var isAddingSource = false
+    @Environment(AppModel.self) private var model
 
     var body: some View {
         VStack(spacing: 28) {
@@ -26,7 +26,7 @@ struct WelcomeView: View {
             Spacer()
             VStack(spacing: 16) {
                 Button {
-                    isAddingSource = true
+                    model.isAddingSource = true
                 } label: {
                     Text("Add Source")
                         .font(.headline)
@@ -44,9 +44,6 @@ struct WelcomeView: View {
         }
         .padding(32)
         .frame(maxWidth: 520)
-        .sheet(isPresented: $isAddingSource) {
-            AddSourceView()
-        }
     }
 }
 

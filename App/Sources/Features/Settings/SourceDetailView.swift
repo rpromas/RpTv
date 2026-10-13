@@ -66,7 +66,8 @@ private struct GuideSection: View {
 
     var body: some View {
         Section {
-            TextField(source.kind == .xtream ? "Provided by the server" : "XMLTV URL", text: $draft)
+            TextField("Guide URL", text: $draft,
+                      prompt: Text(source.kind == .xtream ? "Provided by the server" : "XMLTV URL").foregroundStyle(.secondary))
                 .keyboardType(.URL)
                 .textContentType(.URL)
                 .textInputAutocapitalization(.never)

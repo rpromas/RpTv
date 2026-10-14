@@ -65,25 +65,45 @@ struct RootView: View {
 }
 
 struct MainTabView: View {
+    @State private var selection = MainTab.liveTV
+
     var body: some View {
-        TabView {
-            Tab("Live TV", systemImage: "tv") {
+        // In portrait iPadOS lays the tab sidebar over the content, dims it and closes it after every pick,
+        // so iPad offers the sidebar in landscape only. Switching style rebuilds the tabs; `selection` keeps
+        // the current one.
+        GeometryReader { proxy in
+            if Self.isPad && proxy.size.height > proxy.size.width {
+                tabs.tabViewStyle(.tabBarOnly)
+            } else {
+                tabs.tabViewStyle(.sidebarAdaptable)
+            }
+        }
+    }
+
+    private var tabs: some View {
+        TabView(selection: $selection) {
+            Tab("Live TV", systemImage: "tv", value: .liveTV) {
                 LiveTVView()
             }
-            Tab("Guide", systemImage: "list.bullet.rectangle") {
+            Tab("Guide", systemImage: "list.bullet.rectangle", value: .guide) {
                 GuideView()
             }
-            Tab("Library", systemImage: "film.stack") {
+            Tab("Library", systemImage: "film.stack", value: .library) {
                 LibraryView()
             }
-            Tab("Settings", systemImage: "gearshape") {
+            Tab("Settings", systemImage: "gearshape", value: .settings) {
                 SettingsView()
             }
-            Tab(role: .search) {
+            Tab(value: .search, role: .search) {
                 SearchView()
             }
         }
-        .tabViewStyle(.sidebarAdaptable)
         .tabBarMinimizeBehavior(.onScrollDown)
     }
+
+    private static let isPad = UIDevice.current.userInterfaceIdiom == .pad
+}
+
+private enum MainTab: Hashable {
+    case liveTV, guide, library, settings, search
 }

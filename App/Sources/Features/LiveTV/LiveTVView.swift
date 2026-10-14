@@ -5,55 +5,41 @@
 import RpTvKit
 import SwiftUI
 
-/// Categories in a sidebar, channels in the detail column. Collapses to a stack on iPhone.
+/// Categories beside the channels. Collapses to a stack on iPhone.
+///
+/// Regular width lays the two columns out in one navigation stack rather than a split view: a split view inside
+/// the tab sidebar keeps its old navigation bars when the tab sidebar is shown or hidden, and the floating tab
+/// bar then covers them until the device rotates.
 struct LiveTVView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.horizontalSizeClass) private var sizeClass
     @State private var categories: [CategorySummary] = []
     @State private var selection: ChannelList? = .all
     @State private var preferredColumn = NavigationSplitViewColumn.sidebar
 
     var body: some View {
-        NavigationSplitView(preferredCompactColumn: $preferredColumn) {
-            List(selection: $selection) {
-                Section {
-                    NavigationLink(value: ChannelList.favorites) {
-                        Label("Favorites", systemImage: "star")
+        Group {
+            if sizeClass == .regular {
+                NavigationStack {
+                    HStack(spacing: 0) {
+                        categoryList
+                            .listStyle(.sidebar)
+                            .frame(width: 320)
+                        Divider()
+                            .ignoresSafeArea()
+                        channels
+                            .frame(maxWidth: .infinity)
                     }
-                    .accessibilityIdentifier("favoritesList")
-                    NavigationLink(value: ChannelList.recent) {
-                        Label("Recent", systemImage: "clock")
-                    }
-                    .accessibilityIdentifier("recentList")
-                    NavigationLink(value: ChannelList.all) {
-                        Label("All Channels", systemImage: "square.grid.2x2")
-                    }
-                }
-                Section("Categories") {
-                    ForEach(categories) { summary in
-                        NavigationLink(value: ChannelList.category(summary.category.id!)) {
-                            LabeledContent {
-                                Text(summary.itemCount.formatted())
-                                    .monospacedDigit()
-                            } label: {
-                                CategoryLabel(category: summary.category)
-                            }
-                        }
-                    }
-                }
-            }
-            .navigationTitle(model.activeSource?.name ?? "Live TV")
-            .toolbar { SourceToolbar() }
-            .refreshable { await refreshActiveSource() }
-        } detail: {
-            if let source = model.activeSource, let sourceID = source.id, let selection {
-                if isLocked(selection) {
-                    LockedContentView()
-                } else {
-                    ChannelListView(context: ChannelListContext(sourceID: sourceID, list: selection, title: title(for: selection)))
-                        .id(selection)
+                    .toolbar { SourceToolbar() }
                 }
             } else {
-                ContentUnavailableView("Pick a Category", systemImage: "tv")
+                NavigationSplitView(preferredCompactColumn: $preferredColumn) {
+                    categoryList
+                        .navigationTitle(model.activeSource?.name ?? "Live TV")
+                        .toolbar { SourceToolbar() }
+                } detail: {
+                    channels
+                }
             }
         }
         .task(id: model.activeSource?.id) {
@@ -74,6 +60,59 @@ struct LiveTVView: View {
             if let selection, isLocked(selection) {
                 Task { await model.unlockLockedContent() }
             }
+        }
+    }
+
+    private var categoryList: some View {
+        List(selection: $selection) {
+            Section {
+                row(.favorites) { Label("Favorites", systemImage: "star") }
+                    .accessibilityIdentifier("favoritesList")
+                row(.recent) { Label("Recent", systemImage: "clock") }
+                    .accessibilityIdentifier("recentList")
+                row(.all) { Label("All Channels", systemImage: "square.grid.2x2") }
+            } header: {
+                // The split view shows the source as its sidebar's title.
+                if sizeClass == .regular, let source = model.activeSource {
+                    Text(source.name)
+                }
+            }
+            Section("Categories") {
+                ForEach(categories) { summary in
+                    row(.category(summary.category.id!)) {
+                        LabeledContent {
+                            Text(summary.itemCount.formatted())
+                                .monospacedDigit()
+                        } label: {
+                            CategoryLabel(category: summary.category)
+                        }
+                    }
+                }
+            }
+        }
+        .refreshable { await refreshActiveSource() }
+    }
+
+    /// A list to pick: a link that pushes the channels on iPhone, a selectable row beside them otherwise.
+    @ViewBuilder
+    private func row(_ list: ChannelList, @ViewBuilder label: () -> some View) -> some View {
+        if sizeClass == .regular {
+            label().tag(list)
+        } else {
+            NavigationLink(value: list, label: label)
+        }
+    }
+
+    @ViewBuilder private var channels: some View {
+        if let source = model.activeSource, let sourceID = source.id, let selection {
+            if isLocked(selection) {
+                LockedContentView()
+            } else {
+                ChannelListView(context: ChannelListContext(sourceID: sourceID, list: selection, title: title(for: selection)))
+                    .id(selection)
+            }
+        } else {
+            ContentUnavailableView("Pick a Category", systemImage: "tv")
         }
     }
 

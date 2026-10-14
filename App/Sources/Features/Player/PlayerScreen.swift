@@ -56,10 +56,16 @@ struct PlayerScreen: View {
         .preferredColorScheme(.dark)
         .statusBarHidden(!chrome.controlsVisible)
         .persistentSystemOverlays(chrome.controlsVisible ? .automatic : .hidden)
-        .onAppear { session.start() }
+        .onAppear {
+            session.start()
+            // So the device's orientation is known when the player closes.
+            UIDevice.current.beginGeneratingDeviceOrientationNotifications()
+        }
         .onDisappear {
             session.stop()
             OrientationLock.unlock()
+            OrientationLock.returnToPortraitIfNeeded()
+            UIDevice.current.endGeneratingDeviceOrientationNotifications()
         }
         .task { await session.observeChannels() }
         .task { await session.observeEpisodes() }

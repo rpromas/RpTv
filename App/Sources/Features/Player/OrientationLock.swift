@@ -28,6 +28,18 @@ enum OrientationLock {
         if let scene = UIApplication.shared.activeWindowScene { applyChange(in: scene) }
     }
 
+    /// With the rotation lock on, iOS rotates only when an app asks, so closing the player in landscape (after its
+    /// full screen button) would leave the app there. Turns it back to portrait unless the device is held sideways;
+    /// with the rotation lock on, the device reports portrait however it's held.
+    static func returnToPortraitIfNeeded() {
+        guard UIDevice.current.userInterfaceIdiom == .phone,
+              let scene = UIApplication.shared.activeWindowScene,
+              scene.effectiveGeometry.interfaceOrientation.isLandscape,
+              !UIDevice.current.orientation.isLandscape
+        else { return }
+        scene.requestGeometryUpdate(.iOS(interfaceOrientations: .portrait)) { _ in }
+    }
+
     /// Asks every controller on screen, including the presented player, to re-read the allowed orientations.
     private static func applyChange(in scene: UIWindowScene) {
         var controller = scene.keyWindow?.rootViewController

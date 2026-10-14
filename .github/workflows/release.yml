@@ -1,0 +1,33 @@
+# Archives an unsigned Release build, to check that Release compiles without warnings. The signed build for the
+# App Store is archived and uploaded from Xcode (see docs/app-store.md).
+name: Release build
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  archive:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - name: Archive
+        run: |
+          set -o pipefail
+          mkdir -p build
+          xcodebuild -project RpTv.xcodeproj -scheme RpTv -configuration Release \
+            -destination 'generic/platform=iOS' -archivePath build/RpTv.xcarchive \
+            CODE_SIGNING_ALLOWED=NO archive 2>&1 | tee build/archive.log
+      - name: Check for warnings
+        run: |
+          if grep -E '^/.+: warning: ' build/archive.log; then
+            echo "::error::The Release build has warnings."
+            exit 1
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: archive-log
+          path: build/archive.log

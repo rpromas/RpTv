@@ -156,6 +156,8 @@ struct SettingsView: View {
                 Section {
                     LabeledContent("Version", value: Bundle.main.versionString)
                     NavigationLink("Acknowledgements") { AcknowledgementsView() }
+                    Link("Source Code", destination: URL(string: "https://github.com/rpromas/RpTv")!)
+                    Link("Privacy Policy", destination: URL(string: "https://github.com/rpromas/RpTv/blob/main/docs/privacy.md")!)
                 } header: {
                     Text("About")
                 } footer: {
@@ -364,7 +366,7 @@ private struct AcknowledgementsView: View {
                     }
                 }
             } footer: {
-                Text("FFmpeg is linked dynamically. You can rebuild RpTv from its source code with a modified version of FFmpeg. THIRD_PARTY_NOTICES.md in the RpTv repository explains how.")
+                Text("FFmpeg is linked dynamically. You can rebuild RpTv from its source code with a modified version of FFmpeg. [THIRD_PARTY_NOTICES.md](https://github.com/rpromas/RpTv/blob/main/THIRD_PARTY_NOTICES.md) in the RpTv repository explains how.")
             }
         }
         .navigationTitle("Acknowledgements")

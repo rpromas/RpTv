@@ -9,7 +9,7 @@ import Foundation
 import OSLog
 import Synchronization
 
-private let log = Logger(subsystem: "app.rptv.RpTv", category: "StreamPlayer")
+private let log = Logger(subsystem: "dev.romas.RpTv", category: "StreamPlayer")
 
 /// The threads behind a ``StreamPlayer``: one reads and demuxes, one decodes video into the display layer's
 /// renderer, one decodes audio into the audio renderer. The renderers play what they're given against the

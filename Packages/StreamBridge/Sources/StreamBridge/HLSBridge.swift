@@ -7,7 +7,7 @@ import Foundation
 import OSLog
 import Synchronization
 
-private let log = Logger(subsystem: "app.rptv.RpTv", category: "StreamBridge")
+private let log = Logger(subsystem: "dev.romas.RpTv", category: "StreamBridge")
 
 public enum BridgeError: Error, LocalizedError, Sendable, Equatable {
     case noPlayableStreams

@@ -16,6 +16,7 @@ swift test --package-path Packages/RpTvKit --filter M3UParserTests   # a single 
 swift test --package-path Packages/FFmpeg            # checks the FFmpeg build (codecs present, LGPL only)
 swift test --package-path Packages/StreamBridge      # the FFmpeg player and the AirPlay bridge on synthetic fixtures, HLS server
 xcodebuild -project RpTv.xcodeproj -scheme RpTv -destination 'platform=iOS Simulator,name=iPhone 17' build
+Scripts/screenshots.sh                              # App Store screenshots on the iPhone 6.9" and iPad 13" simulators
 ```
 The UI tests (`UITests/`) skip unless `TEST_RUNNER_RPTV_PLAYLIST_URL` points to a served copy of `Support/demo-playlist.m3u`, and (for `GuideUITests`) `TEST_RUNNER_RPTV_GUIDE_PLAYLIST_URL` to the output of `Scripts/make-demo-guide.py`. See README.
 
@@ -49,3 +50,4 @@ The UI tests (`UITests/`) skip unless `TEST_RUNNER_RPTV_PLAYLIST_URL` points to 
 - Swift 6 with strict concurrency. Swift Testing (`@Test`) for unit tests, with fixtures in `Tests/RpTvKitTests/Fixtures`.
 - Every source file starts with the MPL-2.0 header.
 - Never add real channel lists or provider URLs anywhere in the repo.
+- Release: `docs/app-store.md` (checklist, metadata, review notes). Bundle IDs are `$(BUNDLE_ID_PREFIX).…`, set with the team in `Config/Signing.xcconfig`. A new required-reason API (file timestamps, disk space, boot time…) in the app, a package or FFmpeg needs a matching entry in that binary's privacy manifest (`App/PrivacyInfo.xcprivacy`, or the one `Scripts/build-ffmpeg.sh` writes).

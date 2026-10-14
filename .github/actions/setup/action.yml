@@ -1,0 +1,34 @@
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+name: Set up the build
+description: Xcode, XcodeGen and FFmpeg.xcframework (built from the Vendor/FFmpeg submodule, cached by its commit).
+runs:
+  using: composite
+  steps:
+    - uses: maxim-lobanov/setup-xcode@v1
+      with:
+        xcode-version: latest-stable
+    - name: Install tools
+      shell: sh
+      run: brew install xcodegen nasm
+    - name: Fetch FFmpeg sources
+      shell: sh
+      run: git submodule update --init --depth 1
+    - name: FFmpeg cache key
+      id: key
+      shell: sh
+      run: echo "ffmpeg=$(git rev-parse HEAD:Vendor/FFmpeg)" >> "$GITHUB_OUTPUT"
+    - uses: actions/cache@v4
+      with:
+        path: |
+          build/ffmpeg
+          Packages/FFmpeg/FFmpeg.xcframework
+        key: ffmpeg-${{ steps.key.outputs.ffmpeg }}-${{ hashFiles('Scripts/build-ffmpeg.sh') }}
+    - name: Build FFmpeg
+      shell: sh
+      run: Scripts/build-ffmpeg.sh
+    - name: Generate the project
+      shell: sh
+      run: xcodegen generate

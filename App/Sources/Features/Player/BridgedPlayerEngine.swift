@@ -8,7 +8,7 @@ import OSLog
 import RpTvKit
 import StreamBridge
 
-private let log = Logger(subsystem: "app.rptv.RpTv", category: "StreamBridge")
+private let log = Logger(subsystem: "dev.romas.RpTv", category: "StreamBridge")
 
 /// Plays streams AVPlayer can't open by running them through ``HLSBridge``: FFmpeg turns them into HLS on the
 /// device, ``HLSServer`` serves it on the Wi-Fi address, and an ``AVPlayerEngine`` plays that. Because the

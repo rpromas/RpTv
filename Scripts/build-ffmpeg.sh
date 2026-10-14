@@ -165,7 +165,7 @@ EOF
 <dict>
     <key>CFBundleDevelopmentRegion</key><string>en</string>
     <key>CFBundleExecutable</key><string>FFmpeg</string>
-    <key>CFBundleIdentifier</key><string>app.rptv.FFmpeg</string>
+    <key>CFBundleIdentifier</key><string>dev.romas.FFmpeg</string>
     <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
     <key>CFBundleName</key><string>FFmpeg</string>
     <key>CFBundlePackageType</key><string>FMWK</string>
@@ -173,6 +173,27 @@ EOF
     <key>CFBundleVersion</key><string>$version</string>
     <key>CFBundleSupportedPlatforms</key><array><string>$platform</string></array>
     <key>MinimumOSVersion</key><string>$( [ "$sdk" = macosx ] && echo $MIN_MACOS || echo $MIN_IOS )</string>
+</dict>
+</plist>
+EOF
+
+    # App Store privacy manifest. FFmpeg calls stat, fstat and lstat (file timestamp APIs) on the files RpTv
+    # gives it, which sit in the app's container: reason C617.1.
+    cat > "$(dirname "$plist")/PrivacyInfo.xcprivacy" <<'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>NSPrivacyTracking</key><false/>
+    <key>NSPrivacyTrackingDomains</key><array/>
+    <key>NSPrivacyCollectedDataTypes</key><array/>
+    <key>NSPrivacyAccessedAPITypes</key>
+    <array>
+        <dict>
+            <key>NSPrivacyAccessedAPIType</key><string>NSPrivacyAccessedAPICategoryFileTimestamp</string>
+            <key>NSPrivacyAccessedAPITypeReasons</key><array><string>C617.1</string></array>
+        </dict>
+    </array>
 </dict>
 </plist>
 EOF

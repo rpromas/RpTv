@@ -49,7 +49,7 @@ xcodegen generate                       # creates RpTv.xcodeproj from project.ym
 open RpTv.xcodeproj
 ```
 
-To run on a device, create `Config/Local.xcconfig` with `DEVELOPMENT_TEAM = <your team ID>` (it isn't checked in, and `xcodegen generate` keeps it), and change `PRODUCT_BUNDLE_IDENTIFIER` to one you own. A team picked in Xcode's Signing tab is lost the next time the project is generated.
+To run on a device, create `Config/Local.xcconfig` with your own `DEVELOPMENT_TEAM = <team ID>` and `BUNDLE_ID_PREFIX = <a reverse domain you own>`. It isn't checked in, `xcodegen generate` keeps it, and it overrides the release values in `Config/Signing.xcconfig`. A team picked in Xcode's Signing tab is lost the next time the project is generated.
 
 ## Testing
 
@@ -84,6 +84,10 @@ TEST_RUNNER_RPTV_GUIDE_PLAYLIST_URL=http://127.0.0.1:8765/playlist.m3u \
 
 `Support/demo-playlist.m3u` contains only Apple's public sample streams: HLS, plus one raw MPEG-TS segment that exercises the FFmpeg engine, and a WWDC session MP4 that shows up under Movies. It also serves as the demo source for App Review.
 
+## Releasing
+
+[docs/app-store.md](docs/app-store.md) has the App Store checklist, metadata, review notes and upload steps. `Scripts/screenshots.sh` takes the App Store screenshots on the simulators, from the demo playlist only. The privacy policy is [docs/privacy.md](docs/privacy.md).
+
 ## Project layout
 
 ```
@@ -99,9 +103,10 @@ Packages/RpTvKit/    Core library, platform independent and unit tested
 Packages/FFmpeg/     FFmpeg as a Swift package (the XCFramework is built by Scripts/build-ffmpeg.sh)
 Packages/StreamBridge/  AirPlay bridge: converts streams AVPlayer can't open into local HLS
 Vendor/FFmpeg/       FFmpeg sources (git submodule, pinned to a release tag)
-Scripts/             Build scripts, demo guide generator
+Scripts/             Build scripts, demo guide and screenshot content generators, screenshots
 UITests/             End-to-end UI tests
 Support/             Demo playlist
+docs/                App Store release notes, privacy policy
 project.yml          XcodeGen project spec
 Config/              Build settings (signing; your Local.xcconfig with the team ID)
 ```

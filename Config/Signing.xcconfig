@@ -1,7 +1,10 @@
-// Signing for the app and UI test targets (see project.yml). Put your Apple Developer team ID in
-// Config/Local.xcconfig, which isn't checked in and survives `xcodegen generate`:
+// Signing for the app and UI test targets (see project.yml). These are the App Store release's team and
+// bundle ID prefix. To build on your own device, override both in Config/Local.xcconfig, which isn't checked
+// in and survives `xcodegen generate`:
 //
 //     DEVELOPMENT_TEAM = ABCDE12345
+//     BUNDLE_ID_PREFIX = com.example
 
-DEVELOPMENT_TEAM =
+DEVELOPMENT_TEAM = 7J33ZNSR5W
+BUNDLE_ID_PREFIX = dev.romas
 #include? "Local.xcconfig"

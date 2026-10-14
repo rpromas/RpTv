@@ -17,7 +17,7 @@ public final class StreamPlayer: @unchecked Sendable {
     public let displayLayer = AVSampleBufferDisplayLayer()
     private let audioRenderer = AVSampleBufferAudioRenderer()
     private let synchronizer = AVSampleBufferRenderSynchronizer()
-    private let queue = DispatchQueue(label: "app.rptv.StreamPlayer", qos: .userInitiated)
+    private let queue = DispatchQueue(label: "dev.romas.RpTv.StreamPlayer", qos: .userInitiated)
     /// Whether the user wants playback running, for Picture in Picture to read from the main thread.
     private let playing = Atomic<Bool>(true)
     /// A live stream's first timestamp: its ``currentTime`` counts from there.

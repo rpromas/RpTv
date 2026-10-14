@@ -298,7 +298,7 @@ final class AppModel {
         // Re-read the source: a catalog sync may just have found its guide URL.
         guard let source = try? await database.source(id: sourceID), EPGSyncService.hasGuide(source),
               force || EPGSyncService.isStale(source, interval: settings.guideRefreshInterval) else { return }
-        try? await epgSyncService.sync(source)
+        _ = try? await epgSyncService.sync(source)
     }
 
     /// Starts a guide refresh without waiting for it, so it never holds up a catalog sync.

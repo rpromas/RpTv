@@ -49,7 +49,7 @@ struct PlayerTopBar: View {
             Spacer(minLength: 8)
             GlassEffectContainer(spacing: 8) {
                 HStack(spacing: 8) {
-                    if let item = session.channel?.itemKey ?? session.movie?.itemKey {
+                    if let item = session.channel?.itemKey ?? session.movie?.itemKey ?? session.episode?.seriesItemKey {
                         FavoriteButton(item: item)
                     }
                     if let engine = session.coordinator.engine {
@@ -96,7 +96,7 @@ struct ChannelTitle: View {
 }
 
 /// The playing channel's title with what's on: the programme playing from the archive, or the one on air now
-/// with its progress. `fallback` is the second line when the guide has nothing. For a movie, its title.
+/// with its progress. `fallback` is the second line when the guide has nothing. For a movie or an episode, its title.
 struct NowPlayingTitle: View {
     let session: PlayerSession
     let fallback: String?
@@ -105,6 +105,8 @@ struct NowPlayingTitle: View {
     var body: some View {
         if let movie = session.movie {
             MovieTitle(movie: movie, posterWidth: logoSize.height)
+        } else if let episode = session.episode, let series = session.series {
+            EpisodeTitle(episode: episode, series: series, posterWidth: logoSize.height)
         } else if let channel = session.channel {
             if let programme = session.catchupProgramme {
                 ChannelTitle(channel: channel,
@@ -146,6 +148,29 @@ struct MovieTitle: View {
     }
 }
 
+/// A small poster, the series' name, and which episode this is.
+struct EpisodeTitle: View {
+    let episode: Episode
+    let series: Series
+    /// The poster is half as tall again.
+    var posterWidth: CGFloat = 34
+
+    var body: some View {
+        HStack(spacing: 12) {
+            PosterImage(url: series.posterURL, title: "", width: posterWidth)
+                .frame(width: posterWidth)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(series.name)
+                    .font(.headline)
+                Text("\(episode.code) · \(episode.title)")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            .lineLimit(1)
+        }
+    }
+}
+
 /// Play/pause in the middle, between channel up/down for live streams or ±10 s skips for ones with an end.
 struct PlayerTransport: View {
     let session: PlayerSession
@@ -158,8 +183,8 @@ struct PlayerTransport: View {
         GlassEffectContainer(spacing: 24) {
             HStack(spacing: compact ? 28 : 48) {
                 let engine = session.coordinator.engine
-                // A movie skips even before its length is known.
-                if engine?.duration != nil || session.movie != nil {
+                // A movie or an episode skips even before its length is known.
+                if engine?.duration != nil || session.isOnDemand {
                     PlayerIconButton(title: "Back 10 Seconds", systemImage: "gobackward.10", size: sideSize) {
                         if let engine { skip(engine, by: -10) }
                     }
@@ -238,7 +263,7 @@ struct PlayerBottomBar: View {
             } else if session.catchupProgramme != nil {
                 CatchupBadge()
                 Spacer(minLength: 0)
-            } else if session.movie != nil {
+            } else if session.isOnDemand {
                 Spacer(minLength: 0)
             } else {
                 LiveBadge(isPaused: session.coordinator.state == .paused)

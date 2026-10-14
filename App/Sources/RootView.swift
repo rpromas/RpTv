@@ -73,8 +73,8 @@ struct MainTabView: View {
             Tab("Guide", systemImage: "list.bullet.rectangle") {
                 GuideView()
             }
-            Tab("Movies", systemImage: "film") {
-                MoviesView()
+            Tab("Library", systemImage: "film.stack") {
+                LibraryView()
             }
             Tab("Settings", systemImage: "gearshape") {
                 SettingsView()

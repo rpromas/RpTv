@@ -102,6 +102,20 @@ extension AppDatabase {
         }
     }
 
+    /// A source's favorite series, in the user's order, for a poster grid.
+    public func observeFavoriteSeries(sourceID: Int64, includingLocked: Bool = false) -> AsyncThrowingStream<[SeriesSummary], Error> {
+        observe { db in
+            try SeriesSummary.fetchAll(db, Self.libraryItems(.favorites, kind: .series, sourceID: sourceID, includingLocked: includingLocked))
+        }
+    }
+
+    /// A source's series with an episode played lately, the latest first, for a poster grid.
+    public func observeRecentSeries(sourceID: Int64, includingLocked: Bool = false) -> AsyncThrowingStream<[SeriesSummary], Error> {
+        observe { db in
+            try SeriesSummary.fetchAll(db, Self.libraryItems(.recent, kind: .series, sourceID: sourceID, includingLocked: includingLocked))
+        }
+    }
+
     private enum Library {
         case favorites
         case recent
@@ -114,9 +128,16 @@ extension AppDatabase {
         case .favorites: ("favorite", "favorite.sortIndex")
         case .recent: ("recentItem", "recentItem.playedAt DESC")
         }
-        let table = kind == .movie ? Movie.databaseTableName : Channel.databaseTableName
-        let columns = kind == .movie ? "movie.id, movie.sourceID, movie.stableKey, movie.name, movie.posterURL, movie.rating, movie.year"
-            : "channel.*"
+        let table = switch kind {
+        case .channel: Channel.databaseTableName
+        case .movie: Movie.databaseTableName
+        case .series: Series.databaseTableName
+        case .episode: Episode.databaseTableName
+        }
+        let columns = switch kind {
+        case .movie, .series: "\(table).id, \(table).sourceID, \(table).stableKey, \(table).name, \(table).posterURL, \(table).rating, \(table).year"
+        case .channel, .episode: "\(table).*"
+        }
         return SQLRequest(sql: """
             SELECT \(columns) FROM \(list)
             JOIN \(table) ON \(table).id = (

@@ -133,7 +133,7 @@ final class AddSourceAndPlayUITests: XCTestCase {
         XCTAssertTrue(app.buttons["BipBop Advanced (fMP4)"].firstMatch.waitForExistence(timeout: 30))
         XCTAssertFalse(app.buttons["Discover Observation in SwiftUI (2023)"].exists, "The movie is listed as a channel")
 
-        app.buttons["Movies"].firstMatch.tap()
+        openLibrary(app, "Movies")
         let poster = app.buttons["Discover Observation in SwiftUI (2023), 2023"].firstMatch
         XCTAssertTrue(poster.waitForExistence(timeout: 10), "The movie isn't in the grid")
         attach(app, "Movies")
@@ -157,6 +157,64 @@ final class AddSourceAndPlayUITests: XCTestCase {
         attach(app, "Movie player")
         app.buttons["Close"].tap()
         XCTAssertTrue(play.waitForExistence(timeout: 5))
+    }
+
+    /// The demo playlist's two "Sample Sessions" episodes form a series. Near the end of the first, Up Next moves
+    /// on to the second; closing the player then leaves the first watched, the second to resume, and the series
+    /// under Continue Watching.
+    @MainActor
+    func testSeriesUpNextAndResume() throws {
+        let app = try launchWithDemoPlaylist()
+        XCTAssertTrue(app.buttons["BipBop Advanced (fMP4)"].firstMatch.waitForExistence(timeout: 30))
+        XCTAssertFalse(app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Sample Sessions'")).firstMatch.exists,
+                       "An episode is listed as a channel")
+
+        openLibrary(app, "Series")
+        let poster = app.buttons["Sample Sessions"].firstMatch
+        XCTAssertTrue(poster.waitForExistence(timeout: 10), "The series isn't in the grid")
+        attach(app, "Series")
+        poster.tap()
+
+        let play = app.buttons["playSeriesButton"]
+        XCTAssertTrue(play.waitForExistence(timeout: 5))
+        XCTAssertEqual(play.label, "Play S1 E1")
+        XCTAssertTrue(app.buttons["episode-S1 E2"].exists)
+        attach(app, "Series details")
+        play.tap()
+
+        let video = app.descendants(matching: .any)["nativeVideo"]
+        XCTAssertTrue(video.waitForExistence(timeout: 10))
+        sleep(6)
+        XCTAssertFalse(app.staticTexts["Can't Play This Stream"].exists)
+        _ = showControls(app, over: video)
+        let position = app.sliders["Position"]
+        XCTAssertTrue(position.waitForExistence(timeout: 5), "An episode has no scrubber")
+        attach(app, "Episode player")
+
+        // Near the end, Up Next offers the second episode.
+        position.adjust(toNormalizedSliderPosition: 0.99)
+        let upNext = app.buttons["upNextPlayButton"]
+        XCTAssertTrue(upNext.waitForExistence(timeout: 15), "Up Next didn't appear near the end")
+        attach(app, "Up Next")
+        upNext.tap()
+        XCTAssertFalse(upNext.waitForExistence(timeout: 3) && upNext.isHittable, "Up Next stayed up")
+
+        // Long enough for the second episode's position to be worth resuming.
+        sleep(14)
+        _ = showControls(app, over: video)
+        app.buttons["Close"].tap()
+
+        let resume = app.buttons["playSeriesButton"]
+        XCTAssertTrue(resume.waitForExistence(timeout: 5))
+        expectation(for: NSPredicate(format: "label == 'Resume S1 E2'"), evaluatedWith: resume)
+        waitForExpectations(timeout: 5)
+        XCTAssertTrue(app.buttons["episode-S1 E1"].label.contains("Watched"), "The first episode isn't marked watched")
+        attach(app, "Series details after watching")
+
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        XCTAssertTrue(app.descendants(matching: .any)["continueWatchingShelf"].waitForExistence(timeout: 5),
+                      "The series isn't under Continue Watching")
+        attach(app, "Continue Watching")
     }
 
     /// Star a channel, find it under Favorites, watch it, find it under Recent, then search for another one.
@@ -217,7 +275,7 @@ final class AddSourceAndPlayUITests: XCTestCase {
         star.tap()
         XCTAssertTrue(app.buttons["Remove from Favorites"].waitForExistence(timeout: 3))
 
-        app.buttons["Movies"].firstMatch.tap()
+        openLibrary(app, "Movies")
         // The poster's label starts with "Favorite" when it's starred.
         let poster = app.buttons["Favorite, Discover Observation in SwiftUI (2023), 2023"].firstMatch
         XCTAssertTrue(poster.waitForExistence(timeout: 5), "The poster isn't marked as a favorite")
@@ -272,6 +330,15 @@ final class AddSourceAndPlayUITests: XCTestCase {
         attach(app, "Add Source")
         app.buttons["Add"].tap()
         return app
+    }
+
+    /// Opens the Library tab on its Movies or Series half.
+    @MainActor
+    private func openLibrary(_ app: XCUIApplication, _ half: String) {
+        app.buttons["Library"].firstMatch.tap()
+        let segment = app.segmentedControls["librarySwitcher"].buttons[half]
+        XCTAssertTrue(segment.waitForExistence(timeout: 5))
+        segment.tap()
     }
 
     @MainActor

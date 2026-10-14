@@ -68,18 +68,50 @@ public struct MovieCatalog: Sendable {
     }
 }
 
+/// The series of one source, ready to replace what the database holds.
+public struct SeriesCatalog: Sendable {
+    public struct Item: Sendable {
+        /// The series. Its `sourceID` and `categoryID` are filled in when the catalog is saved.
+        public var series: Series
+        public var groupRemoteID: String?
+        /// Its episodes, when the catalog lists them (M3U). Their `sourceID` is filled in when saved.
+        public var episodes: [Episode]
+
+        public init(series: Series, groupRemoteID: String?, episodes: [Episode] = []) {
+            self.series = series
+            self.groupRemoteID = groupRemoteID
+            self.episodes = episodes
+        }
+    }
+
+    public var groups: [CatalogGroup]
+    public var items: [Item]
+    /// Whether the items carry every episode (M3U). Otherwise (Xtream) episodes are fetched when a series is
+    /// opened, and the ones already fetched are kept.
+    public var includesEpisodes: Bool
+
+    public init(groups: [CatalogGroup], items: [Item], includesEpisodes: Bool) {
+        self.groups = groups
+        self.items = items
+        self.includesEpisodes = includesEpisodes
+    }
+}
+
 /// Everything a sync downloaded for one source.
 public struct SourceCatalog: Sendable {
     public var live: LiveCatalog
     /// `nil` leaves the movies the database has as they are, for when they couldn't be downloaded.
     public var movies: MovieCatalog?
+    /// `nil` leaves the series the database has as they are, for when they couldn't be downloaded.
+    public var series: SeriesCatalog?
 
-    public init(live: LiveCatalog, movies: MovieCatalog?) {
+    public init(live: LiveCatalog, movies: MovieCatalog?, series: SeriesCatalog? = nil) {
         self.live = live
         self.movies = movies
+        self.series = series
     }
 
-    public var itemCount: Int { live.items.count + (movies?.items.count ?? 0) }
+    public var itemCount: Int { live.items.count + (movies?.items.count ?? 0) + (series?.items.count ?? 0) }
 }
 
 // MARK: - Writes
@@ -110,7 +142,7 @@ extension AppDatabase {
     public func deleteSource(id: Int64) async throws {
         try await writer.write { db in
             try Source.deleteOne(db, key: id)
-            for table in [Self.channelSearchTable, Self.movieSearchTable, Self.programmeSearchTable] {
+            for table in [Self.channelSearchTable, Self.movieSearchTable, Self.seriesSearchTable, Self.programmeSearchTable] {
                 try Self.rebuildSearchIndex(db, table)
             }
         }
@@ -132,12 +164,16 @@ extension AppDatabase {
 
     /// Atomically swaps a source's catalog for `catalog`. Readers keep seeing the old catalog until the
     /// transaction commits. Categories the user hid stay hidden, guide overrides stay on their channels,
-    /// channels are matched to the guide the source already has, and movies keep their cached details.
+    /// channels are matched to the guide the source already has, and movies and series keep their cached details.
+    /// Watch progress, favorites and recents point at items by `stableKey`, so they're untouched.
     public func replaceCatalog(sourceID: Int64, with catalog: SourceCatalog) async throws {
         try await writer.write { db in
             try Self.replaceLiveCatalog(db, sourceID: sourceID, with: catalog.live)
             if let movies = catalog.movies {
                 try Self.replaceMovieCatalog(db, sourceID: sourceID, with: movies)
+            }
+            if let series = catalog.series {
+                try Self.replaceSeriesCatalog(db, sourceID: sourceID, with: series)
             }
         }
     }
@@ -182,6 +218,44 @@ extension AppDatabase {
             try movie.insert(db)
         }
         try rebuildSearchIndex(db, movieSearchTable)
+    }
+
+    private static func replaceSeriesCatalog(_ db: Database, sourceID: Int64, with catalog: SeriesCatalog) throws {
+        let cached = try Dictionary(
+            Series.filter(Column("sourceID") == sourceID && Column("detailsFetchedAt") != nil).fetchAll(db)
+                .map { ($0.stableKey, $0) },
+            uniquingKeysWith: { first, _ in first })
+
+        try Series.filter(Column("sourceID") == sourceID).deleteAll(db)
+        let categoryIDs = try replaceCategories(db, sourceID: sourceID, kind: .series, with: catalog.groups)
+
+        for item in catalog.items {
+            var series = item.series
+            series.sourceID = sourceID
+            series.categoryID = item.groupRemoteID.flatMap { categoryIDs[$0] }
+            if let details = cached[series.stableKey] { series.keepDetails(of: details) }
+            try series.insert(db)
+        }
+
+        if catalog.includesEpisodes {
+            try Season.filter(Column("sourceID") == sourceID).deleteAll(db)
+            try Episode.filter(Column("sourceID") == sourceID).deleteAll(db)
+            for item in catalog.items {
+                for var episode in item.episodes {
+                    episode.sourceID = sourceID
+                    try episode.insert(db)
+                }
+            }
+        } else {
+            // Episodes fetched earlier stay, unless their series has left the catalog.
+            for table in [Season.databaseTableName, Episode.databaseTableName] {
+                try db.execute(sql: """
+                    DELETE FROM \(table) WHERE sourceID = ?
+                    AND seriesKey NOT IN (SELECT stableKey FROM series WHERE sourceID = ?)
+                    """, arguments: [sourceID, sourceID])
+            }
+        }
+        try rebuildSearchIndex(db, seriesSearchTable)
     }
 
     /// Replaces a source's categories of one kind, carrying over what the user changed (hidden, locked, renamed,
@@ -266,7 +340,11 @@ extension AppDatabase {
     /// Every category of one kind, hidden ones included, in the user's order, each with its item count.
     /// For the screen where the user manages them.
     public func observeAllCategories(sourceID: Int64, kind: MediaCategory.Kind) -> AsyncThrowingStream<[CategorySummary], Error> {
-        let itemTable = kind == .movie ? Movie.databaseTableName : Channel.databaseTableName
+        let itemTable = switch kind {
+        case .live: Channel.databaseTableName
+        case .movie: Movie.databaseTableName
+        case .series: Series.databaseTableName
+        }
         return observe { db in
             let rows = try Row.fetchAll(db, sql: """
                 SELECT mediaCategory.*, (SELECT COUNT(*) FROM \(itemTable) WHERE categoryID = mediaCategory.id) AS itemCount

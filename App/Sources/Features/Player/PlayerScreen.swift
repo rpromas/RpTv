@@ -12,6 +12,7 @@ struct PlayerScreen: View {
     let session: PlayerSession
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.scenePhase) private var scenePhase
     @State private var chrome = PlayerChrome()
     @State private var airPlay = AirPlayRoute()
 
@@ -61,8 +62,14 @@ struct PlayerScreen: View {
             OrientationLock.unlock()
         }
         .task { await session.observeChannels() }
+        .task { await session.observeEpisodes() }
         .onChange(of: session.coordinator.state, initial: true) { _, state in
             chrome.holdsControls = state != .playing
+            if state == .paused { session.saveProgress() }
+        }
+        // The app may not come back from the background, so the position is saved on the way out.
+        .onChange(of: scenePhase) { _, phase in
+            if phase != .active { session.saveProgress() }
         }
         .onChange(of: session.zapCount) { chrome.showChannelBanner() }
         // With AirPlay on, streams VLC would play go through the bridge instead, so the TV gets their video.
@@ -125,6 +132,14 @@ struct PlayerScreen: View {
                     .allowsHitTesting(false)
                     .transition(.opacity)
             }
+
+            UpNextPrompt(session: session, compact: docked)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                .padding(insets)
+                // Above the bottom bar.
+                .padding(.bottom, docked ? 52 : 76)
+                .padding(.trailing, docked ? 8 : 16)
+                .animation(.default, value: session.isUpNextDismissed)
 
             if let hud = chrome.hudMessage {
                 PlayerHUD(message: hud)
@@ -216,7 +231,7 @@ struct PlayerScreen: View {
             if session.context != nil {
                 ChannelZapList(session: session)
                     .contentMargins(.bottom, bottomInset, for: .scrollContent)
-            } else if let movie = session.movie, let plot = movie.plot {
+            } else if let plot = session.movie?.plot ?? session.episode?.plot ?? session.series?.plot {
                 ScrollView {
                     Text(plot)
                         .font(.callout)

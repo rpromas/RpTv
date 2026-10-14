@@ -427,20 +427,65 @@ final class AppModel {
         }
     }
 
-    /// Opens the player on a movie.
-    func play(_ movie: Movie) {
+    /// Opens the player on a movie, `position` seconds in.
+    func play(_ movie: Movie, from position: TimeInterval? = nil) {
         guard let source = sources.first(where: { $0.id == movie.sourceID }) else { return }
         do {
-            playerSession = try PlayerSession(movie: movie, source: source, database: database, resolver: resolver)
+            playerSession = try PlayerSession(movie: movie, source: source, startPosition: position,
+                                              database: database, resolver: resolver)
         } catch {
             alertMessage = error.localizedDescription
         }
+    }
+
+    /// Opens the player on an episode, `position` seconds in. Near its end, the player offers the next one.
+    func play(_ episode: Episode, of series: Series, from position: TimeInterval? = nil) {
+        guard let source = sources.first(where: { $0.id == episode.sourceID }) else { return }
+        do {
+            playerSession = try PlayerSession(episode: episode, of: series, source: source, startPosition: position,
+                                              database: database, resolver: resolver)
+        } catch {
+            alertMessage = error.localizedDescription
+        }
+    }
+
+    /// Plays a movie from Continue Watching where it stopped.
+    func resume(_ entry: ContinueWatchingMovie) async {
+        guard let movie = try? await database.movie(sourceID: entry.movie.sourceID, stableKey: entry.movie.stableKey) else { return }
+        play(movie, from: entry.progress.resumePosition)
+    }
+
+    /// Plays an episode from Continue Watching where it stopped.
+    func resume(_ entry: ContinueWatchingEpisode) async {
+        guard let series = try? await database.series(sourceID: entry.series.sourceID, stableKey: entry.series.stableKey)
+        else { return }
+        play(entry.episode, of: series, from: entry.progress.resumePosition)
     }
 
     /// Fetches a movie's details from its provider when they're missing or over a week old.
     func refreshDetails(of movie: Movie) async throws {
         guard let source = sources.first(where: { $0.id == movie.sourceID }) else { return }
         try await syncService.refreshDetails(of: movie, in: source)
+    }
+
+    /// Fetches a series' episodes from its provider when they're missing or over a week old.
+    func refreshDetails(of series: Series) async throws {
+        guard let source = sources.first(where: { $0.id == series.sourceID }) else { return }
+        try await syncService.refreshDetails(of: series, in: source)
+    }
+
+    // MARK: - Watch progress
+
+    /// Marks a movie or an episode watched, or unwatched, which forgets how far it got.
+    func setWatched(_ key: ItemKey, _ isWatched: Bool) {
+        let database = database
+        perform { try await database.setWatched(key, isWatched) }
+    }
+
+    /// Takes a movie, or an episode's series, off Continue Watching.
+    func removeFromContinueWatching(_ key: ItemKey) {
+        let database = database
+        perform { try await database.removeFromContinueWatching(key) }
     }
 
     /// Plays a channel a reminder points at, zapping through all of its source's channels.

@@ -117,8 +117,8 @@ public struct PlaybackResolver: Sendable {
         return makeItem(id: channel.stableKey, url: url, channel: channel, source: source, isLive: true)
     }
 
-    /// A movie, from the start. Not live, so the player shows a scrubber.
-    public func item(for movie: Movie, in source: Source) throws -> PlaybackItem {
+    /// A movie, from `startPosition` seconds in. Not live, so the player shows a scrubber.
+    public func item(for movie: Movie, in source: Source, startPosition: TimeInterval? = nil) throws -> PlaybackItem {
         let url: URL
         if let streamID = movie.xtreamStreamID {
             url = try SourceSyncService.xtreamCredentials(for: source, in: credentials)
@@ -138,6 +138,36 @@ public struct PlaybackResolver: Sendable {
             artworkURL: movie.posterURL.flatMap(URL.init(string:)),
             headers: headers,
             isLive: false,
+            startPosition: startPosition,
+            enginePreference: enginePreference(for: source),
+            audioLanguage: preferences.audioLanguage,
+            subtitleLanguage: preferences.subtitleLanguage
+        )
+    }
+
+    /// An episode of `series`, from `startPosition` seconds in. Not live.
+    public func item(for episode: Episode, of series: Series, in source: Source,
+                     startPosition: TimeInterval? = nil) throws -> PlaybackItem {
+        let url: URL
+        if let episodeID = episode.xtreamEpisodeID {
+            url = try SourceSyncService.xtreamCredentials(for: source, in: credentials)
+                .episodeURL(episodeID: episodeID, containerExtension: episode.containerExtension)
+        } else {
+            guard let streamURL = episode.streamURL.flatMap(URL.init(string:)) else { throw SyncError.invalidLocation }
+            url = streamURL
+        }
+        var headers = source.httpHeaders
+        if let userAgent = episode.userAgent { headers["User-Agent"] = userAgent }
+        if let referrer = episode.referrer { headers["Referer"] = referrer }
+        return PlaybackItem(
+            id: episode.stableKey,
+            url: url,
+            title: series.name,
+            subtitle: "\(episode.code) · \(episode.title)",
+            artworkURL: (series.posterURL ?? episode.stillURL).flatMap(URL.init(string:)),
+            headers: headers,
+            isLive: false,
+            startPosition: startPosition,
             enginePreference: enginePreference(for: source),
             audioLanguage: preferences.audioLanguage,
             subtitleLanguage: preferences.subtitleLanguage

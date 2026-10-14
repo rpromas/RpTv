@@ -41,6 +41,9 @@ struct SourceDetailView: View {
                     NavigationLink("Movie Categories") {
                         CategoryManagerView(sourceID: sourceID, kind: .movie)
                     }
+                    NavigationLink("Series Categories") {
+                        CategoryManagerView(sourceID: sourceID, kind: .series)
+                    }
                 } header: {
                     Text("Categories")
                 } footer: {

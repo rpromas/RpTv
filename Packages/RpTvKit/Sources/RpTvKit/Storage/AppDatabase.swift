@@ -230,15 +230,100 @@ public final class AppDatabase: Sendable {
             }
         }
 
+        migrator.registerMigration("v8") { db in
+            try db.create(table: Series.databaseTableName) { t in
+                t.autoIncrementedPrimaryKey("id")
+                t.column("sourceID", .integer).notNull().references(Source.databaseTableName, onDelete: .cascade)
+                t.column("categoryID", .integer).references(MediaCategory.databaseTableName, onDelete: .setNull)
+                t.column("stableKey", .text).notNull()
+                t.column("name", .text).notNull()
+                t.column("posterURL", .text)
+                t.column("rating", .double)
+                t.column("addedAt", .datetime)
+                t.column("year", .integer)
+                t.column("xtreamSeriesID", .integer)
+                t.column("plot", .text)
+                t.column("cast", .text)
+                t.column("director", .text)
+                t.column("genre", .text)
+                t.column("backdropURL", .text)
+                t.column("trailer", .text)
+                t.column("sortIndex", .integer).notNull()
+                t.column("detailsFetchedAt", .datetime)
+            }
+            try db.create(index: "series_source_category", on: Series.databaseTableName,
+                          columns: ["sourceID", "categoryID", "sortIndex"])
+            try db.create(index: "series_categoryID", on: Series.databaseTableName, columns: ["categoryID"])
+            try db.create(index: "series_source_stableKey", on: Series.databaseTableName, columns: ["sourceID", "stableKey"])
+
+            // Seasons and episodes point at their series by stableKey: a sync replaces the series rows, and
+            // the episodes fetched when a series was opened must outlive that.
+            try db.create(table: Season.databaseTableName) { t in
+                t.column("sourceID", .integer).notNull().references(Source.databaseTableName, onDelete: .cascade)
+                t.column("seriesKey", .text).notNull()
+                t.column("number", .integer).notNull()
+                t.column("name", .text)
+                t.column("posterURL", .text)
+                t.column("overview", .text)
+                t.column("airDate", .text)
+                t.column("episodeCount", .integer)
+                t.primaryKey(["sourceID", "seriesKey", "number"])
+            }
+            try db.create(table: Episode.databaseTableName) { t in
+                t.autoIncrementedPrimaryKey("id")
+                t.column("sourceID", .integer).notNull().references(Source.databaseTableName, onDelete: .cascade)
+                t.column("seriesKey", .text).notNull()
+                t.column("stableKey", .text).notNull()
+                t.column("season", .integer).notNull()
+                t.column("number", .integer)
+                t.column("title", .text).notNull()
+                t.column("plot", .text)
+                t.column("durationSeconds", .integer)
+                t.column("stillURL", .text)
+                t.column("rating", .double)
+                t.column("airDate", .text)
+                t.column("containerExtension", .text)
+                t.column("xtreamEpisodeID", .text)
+                t.column("streamURL", .text)
+                t.column("userAgent", .text)
+                t.column("referrer", .text)
+                t.column("sortIndex", .integer).notNull()
+            }
+            try db.create(index: "episode_source_series", on: Episode.databaseTableName,
+                          columns: ["sourceID", "seriesKey", "sortIndex"])
+            try db.create(index: "episode_source_stableKey", on: Episode.databaseTableName, columns: ["sourceID", "stableKey"])
+
+            try db.create(table: PlaybackProgress.databaseTableName) { t in
+                t.column("sourceID", .integer).notNull().references(Source.databaseTableName, onDelete: .cascade)
+                t.column("kind", .text).notNull()
+                t.column("stableKey", .text).notNull()
+                t.column("position", .double).notNull()
+                t.column("duration", .double).notNull()
+                t.column("updatedAt", .datetime).notNull()
+                t.column("isWatched", .boolean).notNull().defaults(to: false)
+                t.primaryKey(["sourceID", "kind", "stableKey"])
+            }
+            try db.create(index: "playbackProgress_updatedAt", on: PlaybackProgress.databaseTableName, columns: ["updatedAt"])
+
+            try db.create(virtualTable: Self.seriesSearchTable, using: FTS5()) { t in
+                t.content = Series.databaseTableName
+                t.contentRowID = "id"
+                t.tokenizer = .unicode61(diacritics: .remove)
+                t.column("name")
+            }
+            try rebuildSearchIndex(db, Self.seriesSearchTable)
+        }
+
         return migrator
     }
 
     static let channelSearchTable = "channelSearch"
     static let movieSearchTable = "movieSearch"
+    static let seriesSearchTable = "seriesSearch"
     static let programmeSearchTable = "programmeSearch"
 
     /// Re-reads the indexed text of every row. Call after any write that adds, removes or renames
-    /// channels, movies or programmes. Rebuilding 100,000 channels takes about a quarter of a second.
+    /// channels, movies, series or programmes. Rebuilding 100,000 channels takes about a quarter of a second.
     static func rebuildSearchIndex(_ db: Database, _ table: String) throws {
         try db.execute(sql: "INSERT INTO \(table)(\(table)) VALUES('rebuild')")
     }
@@ -286,6 +371,34 @@ extension Movie: FetchableRecord, MutablePersistableRecord {
 
 extension MovieSummary: FetchableRecord {
     static let columns = ["id", "sourceID", "stableKey", "name", "posterURL", "rating", "year"].map { Column($0) }
+}
+
+extension Series: FetchableRecord, MutablePersistableRecord {
+    public static let databaseTableName = "series"
+
+    public mutating func didInsert(_ inserted: InsertionSuccess) {
+        id = inserted.rowID
+    }
+}
+
+extension SeriesSummary: FetchableRecord {
+    static let columns = ["id", "sourceID", "stableKey", "name", "posterURL", "rating", "year"].map { Column($0) }
+}
+
+extension Season: FetchableRecord, PersistableRecord {
+    public static let databaseTableName = "season"
+}
+
+extension Episode: FetchableRecord, MutablePersistableRecord {
+    public static let databaseTableName = "episode"
+
+    public mutating func didInsert(_ inserted: InsertionSuccess) {
+        id = inserted.rowID
+    }
+}
+
+extension PlaybackProgress: FetchableRecord, PersistableRecord {
+    public static let databaseTableName = "playbackProgress"
 }
 
 extension ItemKind: DatabaseValueConvertible {}

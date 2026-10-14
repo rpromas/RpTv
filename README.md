@@ -9,12 +9,14 @@ A free, open-source IPTV player for iPhone and iPad, built with SwiftUI for iOS 
 - **Sources:** M3U/M3U8 playlists (by URL or imported file) and Xtream Codes accounts. Keep several sources and switch between them.
 - **Live TV:** categories and channels in a split view (sidebar on iPad, stack on iPhone), search, and channel logos.
 - **Movies:** Xtream VOD, and the movies an M3U playlist mixes in with its channels. A poster grid by category, sorted by date added, name or rating, with search, and a details screen (plot, cast, runtime, trailer).
-- **Favorites and recents:** star channels and movies from any list, poster or the player, reorder favorite channels by dragging, and find what you watched last. Optionally resume the last channel at launch.
-- **Search:** one search across all sources for channels, movies and guide programmes, matching word prefixes and ignoring accents ("cafe" finds "Café").
+- **Series:** Xtream series, and the episodes an M3U playlist names like "Show S01E02", gathered into series. Seasons and episodes with stills, plots and runtimes, and an Up Next prompt near the end of each episode. Movies and series share the Library tab.
+- **Continue Watching:** movies and episodes remember where you stopped, resume from there, and count as watched at 95 %. A Continue Watching row at the top of Movies and Series, and a watched check on every episode.
+- **Favorites and recents:** star channels, movies and series from any list, poster or the player, reorder favorite channels by dragging, and find what you watched last. Optionally resume the last channel at launch.
+- **Search:** one search across all sources for channels, movies, series and guide programmes, matching word prefixes and ignoring accents ("cafe" finds "Café").
 - **TV guide:** XMLTV guides (from the playlist, the Xtream account, or a URL you set), now/next on every channel, and a guide grid with programme details and reminders.
 - **Catch-up:** watch past programmes from the provider's archive: Xtream timeshift, and M3U `catchup` modes (`default`, `append`, `shift`, `flussonic`).
 - **Categories:** hide, rename and drag categories into your own order, per source. Your changes survive refreshes.
-- **Parental controls:** a 4-digit PIN, with optional Face ID or Touch ID, locks the categories you pick. Their channels and movies stay out of lists, search, favorites and recents until the PIN is entered, and lock again when the app goes to the background.
+- **Parental controls:** a 4-digit PIN, with optional Face ID or Touch ID, locks the categories you pick. Their channels, movies and series stay out of lists, search, favorites and recents until the PIN is entered, and lock again when the app goes to the background.
 - **Sources:** edit a source's address, login, guide, headers and player at any time. Xtream accounts show their status, expiry date and connections, with a warning a week before they expire. Export your sources to a JSON file (without passwords) and import them on another device.
 - **Settings:** a default player, the live buffer, preferred audio and subtitle languages, how often catalogs and guides refresh, light or dark appearance, and clearing the image cache or guide data.
 - **Playback:** the native AVPlayer engine with Picture in Picture, AirPlay and background audio, and VLC for raw MPEG-TS, MKV, RTMP and other formats AVPlayer can't play. RpTv picks the engine per stream and switches to VLC automatically when the native player fails. You can also force one engine per source.
@@ -27,9 +29,9 @@ A free, open-source IPTV player for iPhone and iPad, built with SwiftUI for iOS 
   - [x] VLCKit engine with automatic fallback for MPEG-TS/MKV.
   - [x] Custom controls, track selection, channel zapping, AirPlay bridge.
 - [x] Phase 3: TV guide (XMLTV). Now/next, EPG grid, catch-up.
-- [ ] Phase 4: movies and series.
+- [x] Phase 4: movies and series.
   - [x] Movies (VOD).
-  - [ ] Series and Continue Watching.
+  - [x] Series and Continue Watching.
 - [x] Phase 5: library and settings.
   - [x] Favorites, recently watched and global search.
   - [x] Category management, parental controls, settings, account status, source export and import.

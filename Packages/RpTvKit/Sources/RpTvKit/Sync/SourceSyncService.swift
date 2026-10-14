@@ -21,7 +21,7 @@ public enum SyncError: LocalizedError, Equatable {
         switch self {
         case .missingPassword: "The saved password for this account is missing. Edit the source and enter it again."
         case .invalidLocation: "The playlist address isn't valid."
-        case .emptyPlaylist: "The playlist doesn't contain any channels or movies."
+        case .emptyPlaylist: "The playlist doesn't contain any channels, movies or series."
         }
     }
 }
@@ -49,7 +49,7 @@ public struct SourceSyncService: Sendable {
         self.http = http ?? session
     }
 
-    /// Refreshes a source and returns how many channels and movies it now has. Records the outcome on the source.
+    /// Refreshes a source and returns how many channels, movies and series it now has. Records the outcome on the source.
     @discardableResult
     public func sync(_ source: Source, progress: @escaping @Sendable (SyncPhase) -> Void = { _ in }) async throws -> Int {
         guard let sourceID = source.id else { preconditionFailure("Sync requires a saved source") }
@@ -80,6 +80,15 @@ public struct SourceSyncService: Sendable {
         let client = XtreamClient(credentials: try xtreamCredentials(for: source), http: http, headers: source.httpHeaders)
         let info = try await client.vodInfo(streamID: streamID)
         try await database.saveMovieDetails(sourceID: movie.sourceID, stableKey: movie.stableKey, details: info, fetchedAt: now)
+    }
+
+    /// Fetches a series' seasons and episodes from the provider and caches them, if they're missing or over a week
+    /// old. Only Xtream series are fetched; M3U ones got their episodes from the playlist.
+    public func refreshDetails(of series: Series, in source: Source, now: Date = .now) async throws {
+        guard series.needsDetails(now: now), let seriesID = series.xtreamSeriesID, source.kind == .xtream else { return }
+        let client = XtreamClient(credentials: try xtreamCredentials(for: source), http: http, headers: source.httpHeaders)
+        let info = try await client.seriesInfo(seriesID: seriesID)
+        try await database.saveSeriesDetails(sourceID: series.sourceID, stableKey: series.stableKey, info: info, fetchedAt: now)
     }
 
     /// The Xtream account's status from the server, even when it has expired or been disabled. Also stores its
@@ -165,11 +174,51 @@ public struct SourceSyncService: Sendable {
         async let categories = client.liveCategories()
         async let streams = client.liveStreams()
         async let movies = Self.xtreamMovies(client)
+        async let series = Self.xtreamSeries(client)
         let (liveCategories, liveStreams) = try await (categories, streams)
         progress(.downloading(itemCount: liveStreams.count))
         let movieCatalog = await movies
         progress(.downloading(itemCount: liveStreams.count + (movieCatalog?.items.count ?? 0)))
-        return SourceCatalog(live: Self.xtreamCatalog(categories: liveCategories, streams: liveStreams), movies: movieCatalog)
+        let seriesCatalog = await series
+        let catalog = SourceCatalog(live: Self.xtreamCatalog(categories: liveCategories, streams: liveStreams),
+                                    movies: movieCatalog, series: seriesCatalog)
+        progress(.downloading(itemCount: catalog.itemCount))
+        return catalog
+    }
+
+    /// The account's series, or `nil` when they couldn't be downloaded, like ``xtreamMovies(_:)``.
+    private static func xtreamSeries(_ client: XtreamClient) async -> SeriesCatalog? {
+        async let categories = client.seriesCategories()
+        async let series = client.series()
+        guard let (seriesCategories, seriesList) = try? await (categories, series) else { return nil }
+        return xtreamSeriesCatalog(categories: seriesCategories, series: seriesList)
+    }
+
+    static func xtreamSeriesCatalog(categories: [XtreamCategory], series: [XtreamSeries]) -> SeriesCatalog {
+        let groups = categories.map { CatalogGroup(remoteID: $0.id, name: $0.name) }
+        let items = series.enumerated().map { index, series in
+            SeriesCatalog.Item(
+                series: Series(
+                    sourceID: 0,
+                    stableKey: "xtream-series:\(series.seriesID)",
+                    name: series.name,
+                    posterURL: series.cover,
+                    rating: series.rating.flatMap { $0 > 0 ? $0 : nil },
+                    addedAt: series.lastModified,
+                    year: Movie.year(inReleaseDate: series.releaseDate) ?? Movie.year(inTitle: series.name),
+                    xtreamSeriesID: series.seriesID,
+                    plot: series.plot,
+                    cast: series.cast,
+                    director: series.director,
+                    genre: series.genre,
+                    backdropURL: series.backdrops.first,
+                    trailer: series.youtubeTrailer,
+                    sortIndex: index
+                ),
+                groupRemoteID: series.categoryID
+            )
+        }
+        return SeriesCatalog(groups: groups, items: items, includesEpisodes: false)
     }
 
     /// The account's movies, or `nil` when they couldn't be downloaded. Some accounts have live TV only and
@@ -225,22 +274,36 @@ public struct SourceSyncService: Sendable {
     }
 }
 
-/// Turns M3U entries into a catalog: channels and movies, each with a category per `group-title` in order of
-/// first appearance.
+/// Turns M3U entries into a catalog: channels, movies and series, each with a category per `group-title` in order
+/// of first appearance. Episodes are gathered into series by the show name in their titles ("Show S01 E02"),
+/// within their group.
 struct M3UCatalogBuilder {
     static let ungroupedID = ""
 
     private var liveGroups = GroupList()
     private var movieGroups = GroupList()
+    private var seriesGroups = GroupList()
     private var channels: [LiveCatalog.Item] = []
     private var movies: [MovieCatalog.Item] = []
+    private var series: [SeriesCatalog.Item] = []
+    /// Index in `series` by stableKey.
+    private var seriesIndex: [String: Int] = [:]
+    private var episodeKeys: Set<String> = []
+    private var episodeCount = 0
 
-    var count: Int { channels.count + movies.count }
+    var count: Int { channels.count + movies.count + episodeCount }
 
     mutating func add(_ entry: M3UEntry) {
         let groupID = entry.group ?? Self.ungroupedID
         let groupName = entry.group ?? "Uncategorized"
-        switch entry.contentKind {
+        var kind = entry.contentKind
+        let episodeName = kind == .episode ? entry.episodeName : nil
+        if kind == .episode, episodeName == nil { kind = .movie }
+        switch kind {
+        case .episode:
+            guard let episodeName else { return }
+            seriesGroups.add(groupID, name: groupName)
+            addEpisode(entry, named: episodeName, groupID: groupID)
         case .live:
             liveGroups.add(groupID, name: groupName)
             let channel = Channel(
@@ -278,9 +341,62 @@ struct M3UCatalogBuilder {
         }
     }
 
+    private mutating func addEpisode(_ entry: M3UEntry, named name: EpisodeName, groupID: String) {
+        let seriesKey = "m3u-series:\(name.show)|\(groupID)"
+        let index: Int
+        if let existing = seriesIndex[seriesKey] {
+            index = existing
+        } else {
+            index = series.count
+            seriesIndex[seriesKey] = index
+            series.append(SeriesCatalog.Item(
+                series: Series(sourceID: 0, stableKey: seriesKey, name: name.show, posterURL: entry.logo,
+                               year: Movie.year(inTitle: name.show), sortIndex: index),
+                groupRemoteID: groupID))
+        }
+        // The same episode listed twice (say, in two qualities) gets a key of its own.
+        var stableKey = "m3u-episode:\(name.show)|\(groupID)|\(name.season)x\(name.episode)"
+        var duplicate = 1
+        while !episodeKeys.insert(stableKey).inserted {
+            duplicate += 1
+            stableKey = "m3u-episode:\(name.show)|\(groupID)|\(name.season)x\(name.episode)#\(duplicate)"
+        }
+        let fileExtension = ((URLComponents(string: entry.url)?.path ?? "") as NSString).pathExtension.lowercased()
+        series[index].episodes.append(Episode(
+            sourceID: 0,
+            seriesKey: seriesKey,
+            stableKey: stableKey,
+            season: name.season,
+            number: name.episode,
+            title: name.title ?? "Episode \(name.episode)",
+            durationSeconds: entry.duration.flatMap { $0 > 0 ? $0 : nil },
+            stillURL: entry.logo,
+            containerExtension: fileExtension.isEmpty ? nil : fileExtension,
+            streamURL: entry.url,
+            userAgent: entry.userAgent,
+            referrer: entry.referrer,
+            sortIndex: 0
+        ))
+        episodeCount += 1
+    }
+
     var catalog: SourceCatalog {
-        SourceCatalog(live: LiveCatalog(groups: liveGroups.groups, items: channels),
-                      movies: MovieCatalog(groups: movieGroups.groups, items: movies))
+        // Playlists don't always list episodes in order.
+        let series = series.map { item in
+            var item = item
+            item.episodes = item.episodes.enumerated()
+                .sorted { ($0.element.season, $0.element.number ?? 0, $0.offset) < ($1.element.season, $1.element.number ?? 0, $1.offset) }
+                .enumerated()
+                .map { index, entry in
+                    var episode = entry.element
+                    episode.sortIndex = index
+                    return episode
+                }
+            return item
+        }
+        return SourceCatalog(live: LiveCatalog(groups: liveGroups.groups, items: channels),
+                             movies: MovieCatalog(groups: movieGroups.groups, items: movies),
+                             series: SeriesCatalog(groups: seriesGroups.groups, items: series, includesEpisodes: true))
     }
 
     private struct GroupList {

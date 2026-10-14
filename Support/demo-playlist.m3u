@@ -11,3 +11,7 @@ https://devstreaming-cdn.apple.com/videos/streaming/examples/adv_dv_atmos/main.m
 https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_ts/v5/fileSequence0.ts
 #EXTINF:-1 tvg-id="apple.wwdc23.observation" group-title="Movies",Discover Observation in SwiftUI (2023)
 https://devstreaming-cdn.apple.com/videos/wwdc/2023/10149/4/F4769BC3-3B47-49AF-B11B-6957B0A25574/downloads/wwdc2023-10149_sd.mp4
+#EXTINF:-1 group-title="Sample Series",Sample Sessions S01E01 - Observation
+https://devstreaming-cdn.apple.com/videos/wwdc/2023/10149/4/F4769BC3-3B47-49AF-B11B-6957B0A25574/downloads/wwdc2023-10149_sd.mp4
+#EXTINF:-1 group-title="Sample Series",Sample Sessions S01E02 - Observation Again
+https://devstreaming-cdn.apple.com/videos/wwdc/2023/10149/4/F4769BC3-3B47-49AF-B11B-6957B0A25574/downloads/wwdc2023-10149_sd.mp4

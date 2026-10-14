@@ -5,19 +5,11 @@
 import RpTvKit
 import SwiftUI
 
-/// One of a source's movie lists.
-enum MovieList: Hashable {
-    case all
-    case category(Int64)
-    case favorites
-    case recent
-}
-
 /// The active source's movies: list and category chips over a poster grid, with sorting and search.
 struct MoviesView: View {
     @Environment(AppModel.self) private var model
     @State private var categories: [CategorySummary] = []
-    @State private var list = MovieList.all
+    @State private var list = LibraryList.all
     @State private var search = ""
     @AppStorage("movieSort") private var sort = MovieSort.added
 
@@ -33,7 +25,7 @@ struct MoviesView: View {
                         }
                     }
                     .safeAreaBar(edge: .top) {
-                        CategoryChips(categories: categories, selection: $list)
+                        LibraryChips(categories: categories, selection: $list, identifierPrefix: "movie")
                     }
                 } else {
                     ContentUnavailableView("No Source", systemImage: "film")
@@ -45,6 +37,7 @@ struct MoviesView: View {
                 MovieDetailView(summary: movie)
             }
             .toolbar {
+                LibrarySwitcher()
                 SourceToolbar()
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
@@ -80,67 +73,16 @@ struct MoviesView: View {
     }
 
     /// Whether `list` is a locked category that the PIN hasn't opened yet.
-    private func isLocked(_ list: MovieList) -> Bool {
+    private func isLocked(_ list: LibraryList) -> Bool {
         guard case .category(let id) = list, model.parental.isRestricted else { return false }
         return categories.first { $0.category.id == id }?.category.isLocked ?? false
-    }
-}
-
-/// "All", "Favorites", "Recent" and one chip per category, scrolling sideways.
-private struct CategoryChips: View {
-    let categories: [CategorySummary]
-    @Binding var selection: MovieList
-    @Environment(AppModel.self) private var model
-
-    var body: some View {
-        ScrollViewReader { proxy in
-            ScrollView(.horizontal) {
-                HStack(spacing: 8) {
-                    chip("All", list: .all)
-                    chip("Favorites", list: .favorites)
-                        .accessibilityIdentifier("movieFavoritesChip")
-                    chip("Recent", list: .recent)
-                        .accessibilityIdentifier("movieRecentChip")
-                    ForEach(categories) { summary in
-                        chip(summary.category.displayName, list: .category(summary.category.id!),
-                             isLocked: summary.category.isLocked && model.parental.isRestricted)
-                    }
-                }
-                .padding(.horizontal)
-                .padding(.vertical, 6)
-            }
-            .scrollIndicators(.hidden)
-            // A horizontal scroll view takes all the height it's offered: keep the bar to its chips.
-            .fixedSize(horizontal: false, vertical: true)
-            .onChange(of: selection) { _, list in
-                withAnimation { proxy.scrollTo(list, anchor: .center) }
-            }
-        }
-    }
-
-    @ViewBuilder private func chip(_ title: String, list: MovieList, isLocked: Bool = false) -> some View {
-        let button = Button { selection = list } label: {
-            if isLocked {
-                Label(title, systemImage: "lock.fill")
-            } else {
-                Text(title)
-            }
-        }
-            .controlSize(.small)
-            .accessibilityAddTraits(selection == list ? .isSelected : [])
-            .id(list)
-        if selection == list {
-            button.buttonStyle(.glassProminent)
-        } else {
-            button.buttonStyle(.glass)
-        }
     }
 }
 
 /// Posters in an adaptive grid. Only the posters on screen are built, and each image is downsampled.
 private struct MovieGrid: View {
     let sourceID: Int64
-    let list: MovieList
+    let list: LibraryList
     let search: String
     let sort: MovieSort
 
@@ -152,10 +94,14 @@ private struct MovieGrid: View {
     var body: some View {
         let posterWidth: CGFloat = sizeClass == .compact ? 105 : 150
         ScrollView {
+            if list == .all, search.isEmpty {
+                ContinueWatchingShelf(kind: .movies, sourceID: sourceID)
+            }
             LazyVGrid(columns: [GridItem(.adaptive(minimum: posterWidth), spacing: 12, alignment: .top)], spacing: 18) {
                 ForEach(movies) { movie in
                     NavigationLink(value: movie) {
-                        PosterCell(movie: movie, posterWidth: posterWidth * 1.4,
+                        PosterCell(title: movie.name, posterURL: movie.posterURL, rating: movie.rating, year: movie.year,
+                                   posterWidth: posterWidth * 1.4,
                                    isFavorite: list != .favorites && model.isFavorite(movie.itemKey))
                     }
                     .buttonStyle(.plain)
@@ -225,55 +171,10 @@ private struct MovieGrid: View {
 
     private struct QueryKey: Equatable {
         var sourceID: Int64
-        var list: MovieList
+        var list: LibraryList
         var search: String
         var sort: MovieSort
         var includesLocked: Bool
-    }
-}
-
-private struct PosterCell: View {
-    let movie: MovieSummary
-    let posterWidth: CGFloat
-    var isFavorite = false
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            PosterImage(url: movie.posterURL, title: movie.name, width: posterWidth)
-                .overlay(alignment: .topTrailing) {
-                    if let rating = movie.rating {
-                        Label(rating.ratingText, systemImage: "star.fill")
-                            .font(.caption2.weight(.semibold))
-                            .labelStyle(.titleAndIcon)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 3)
-                            .background(.ultraThinMaterial, in: .capsule)
-                            .padding(5)
-                    }
-                }
-                .overlay(alignment: .topLeading) {
-                    if isFavorite {
-                        Image(systemName: "star.fill")
-                            .font(.caption2)
-                            .foregroundStyle(.yellow)
-                            .padding(5)
-                            .background(.ultraThinMaterial, in: .circle)
-                            .padding(5)
-                            .accessibilityLabel("Favorite")
-                    }
-                }
-            Text(movie.name)
-                .font(.caption.weight(.medium))
-                .lineLimit(2)
-            if let year = movie.year {
-                Text(String(year))
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .contentShape(.rect)
-        .accessibilityElement(children: .combine)
-        .accessibilityAddTraits(.isButton)
     }
 }
 

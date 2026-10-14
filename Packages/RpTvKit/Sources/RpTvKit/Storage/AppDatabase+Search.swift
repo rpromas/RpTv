@@ -21,6 +21,13 @@ public struct SearchResults: Sendable, Equatable {
         public var id: Int64 { movie.id }
     }
 
+    public struct SeriesHit: Sendable, Hashable, Identifiable {
+        public var series: SeriesSummary
+        public var sourceName: String
+
+        public var id: Int64 { series.id }
+    }
+
     public struct ProgrammeHit: Sendable, Hashable, Identifiable {
         public var programme: Programme
         /// The channel the programme is on.
@@ -32,20 +39,22 @@ public struct SearchResults: Sendable, Equatable {
 
     public var channels: [ChannelHit] = []
     public var movies: [MovieHit] = []
+    public var series: [SeriesHit] = []
     /// Programmes on air or still to come, the soonest first.
     public var programmes: [ProgrammeHit] = []
 
-    public init(channels: [ChannelHit] = [], movies: [MovieHit] = [], programmes: [ProgrammeHit] = []) {
+    public init(channels: [ChannelHit] = [], movies: [MovieHit] = [], series: [SeriesHit] = [], programmes: [ProgrammeHit] = []) {
         self.channels = channels
         self.movies = movies
+        self.series = series
         self.programmes = programmes
     }
 
-    public var isEmpty: Bool { channels.isEmpty && movies.isEmpty && programmes.isEmpty }
+    public var isEmpty: Bool { channels.isEmpty && movies.isEmpty && series.isEmpty && programmes.isEmpty }
 }
 
 extension AppDatabase {
-    /// Searches every source for channels, movies and programmes whose names contain words starting with the words of
+    /// Searches every source for channels, movies, series and programmes whose names contain words starting with the words of
     /// `text`, ignoring case and diacritics: "spo new" finds "Sports News", "cafe" finds "Café". Items in
     /// hidden categories are left out, and so are those in locked categories unless `includingLocked`.
     /// At most `limit` of each kind, best matches first.
@@ -99,6 +108,19 @@ extension AppDatabase {
             """, arguments: [pattern, limit])
         let movies = try movieRows.map { SearchResults.MovieHit(movie: try MovieSummary(row: $0), sourceName: $0["sourceName"]) }
 
+        let seriesRows = try Row.fetchAll(db, sql: """
+            SELECT series.id, series.sourceID, series.stableKey, series.name, series.posterURL, series.rating, series.year,
+                   source.name AS sourceName
+            FROM seriesSearch
+            JOIN series ON series.id = seriesSearch.rowid
+            JOIN source ON source.id = series.sourceID
+            LEFT JOIN mediaCategory ON mediaCategory.id = series.categoryID
+            WHERE seriesSearch MATCH ? AND COALESCE(\(excluded), 0) = 0
+            ORDER BY seriesSearch.rank, series.sourceID, series.sortIndex
+            LIMIT ?
+            """, arguments: [pattern, limit])
+        let series = try seriesRows.map { SearchResults.SeriesHit(series: try SeriesSummary(row: $0), sourceName: $0["sourceName"]) }
+
         // A programme is shown on the first visible channel matched to its guide channel.
         let programmeRows = try Row.fetchAll(db, sql: """
             SELECT * FROM (
@@ -124,6 +146,6 @@ extension AppDatabase {
             guard let channel = programmeChannels[row["channelID"]] else { return nil }
             return SearchResults.ProgrammeHit(programme: try Programme(row: row), channel: channel, sourceName: row["sourceName"])
         }
-        return SearchResults(channels: channels, movies: movies, programmes: programmes)
+        return SearchResults(channels: channels, movies: movies, series: series, programmes: programmes)
     }
 }

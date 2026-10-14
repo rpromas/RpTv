@@ -5,7 +5,7 @@
 import RpTvKit
 import SwiftUI
 
-/// Searches channels, movies and guide programmes across every source.
+/// Searches channels, movies, series and guide programmes across every source.
 struct SearchView: View {
     @Environment(AppModel.self) private var model
     @State private var query = ""
@@ -33,6 +33,14 @@ struct SearchView: View {
                             }
                         }
                     }
+                    if !results.series.isEmpty {
+                        Section("Series") {
+                            ForEach(results.series) { hit in
+                                posterRow(title: hit.series.name, posterURL: hit.series.posterURL, year: hit.series.year,
+                                          sourceName: hit.sourceName, key: hit.series.itemKey, value: hit.series)
+                            }
+                        }
+                    }
                     if !results.programmes.isEmpty {
                         Section("Programmes") {
                             ForEach(results.programmes) { hit in
@@ -45,9 +53,12 @@ struct SearchView: View {
             }
             .overlay { emptyView }
             .navigationTitle("Search")
-            .searchable(text: $query, prompt: "Channels, movies and programmes")
+            .searchable(text: $query, prompt: "Channels, movies, series and programmes")
             .navigationDestination(for: MovieSummary.self) { movie in
                 MovieDetailView(summary: movie)
+            }
+            .navigationDestination(for: SeriesSummary.self) { series in
+                SeriesDetailView(summary: series)
             }
             .task(id: SearchKey(query: query, includesLocked: model.includesLocked)) { await search(query) }
             .sheet(item: $selection, onDismiss: playPending) { selection in
@@ -62,7 +73,7 @@ struct SearchView: View {
     @ViewBuilder private var emptyView: some View {
         if query.trimmingCharacters(in: .whitespaces).isEmpty {
             ContentUnavailableView("Search", systemImage: "magnifyingglass",
-                                   description: Text("Find channels, movies and programmes in all your sources."))
+                                   description: Text("Find channels, movies, series and programmes in all your sources."))
         } else if resultsQuery == query, results.isEmpty {
             ContentUnavailableView.search(text: query)
         }
@@ -80,35 +91,42 @@ struct SearchView: View {
     }
 
     private func movieRow(_ hit: SearchResults.MovieHit) -> some View {
-        NavigationLink(value: hit.movie) {
+        posterRow(title: hit.movie.name, posterURL: hit.movie.posterURL, year: hit.movie.year, sourceName: hit.sourceName,
+                  key: hit.movie.itemKey, value: hit.movie)
+    }
+
+    /// A movie or a series: poster, name, year and source, opening its details.
+    private func posterRow(title: String, posterURL: String?, year: Int?, sourceName: String, key: ItemKey,
+                           value: some Hashable) -> some View {
+        NavigationLink(value: value) {
             HStack(spacing: 14) {
-                PosterImage(url: hit.movie.posterURL, title: hit.movie.name, width: 40)
+                PosterImage(url: posterURL, title: title, width: 40)
                     .frame(width: 40)
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 4) {
-                        Text(hit.movie.name)
+                        Text(title)
                             .font(.body.weight(.medium))
                             .lineLimit(1)
-                        if model.isFavorite(hit.movie.itemKey) {
+                        if model.isFavorite(key) {
                             Image(systemName: "star.fill")
                                 .font(.caption2)
                                 .foregroundStyle(.yellow)
                                 .accessibilityLabel("Favorite")
                         }
                     }
-                    if let year = hit.movie.year {
+                    if let year {
                         Text(String(year))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
-                    Text(hit.sourceName)
+                    Text(sourceName)
                         .font(.caption)
                         .foregroundStyle(.tint)
                         .lineLimit(1)
                 }
             }
         }
-        .favoriteActions(for: hit.movie.itemKey)
+        .favoriteActions(for: key)
     }
 
     private func programmeRow(_ hit: SearchResults.ProgrammeHit) -> some View {

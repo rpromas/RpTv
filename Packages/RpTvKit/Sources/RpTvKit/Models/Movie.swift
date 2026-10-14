@@ -101,7 +101,9 @@ public struct Movie: Codable, Sendable, Hashable, Identifiable {
     }
 
     /// The trailer on YouTube. Providers give either the video id or a full URL.
-    public var trailerURL: URL? {
+    public var trailerURL: URL? { Self.trailerURL(trailer) }
+
+    static func trailerURL(_ trailer: String?) -> URL? {
         guard let trailer = trailer?.trimmingCharacters(in: .whitespacesAndNewlines), !trailer.isEmpty else { return nil }
         if trailer.contains("://") { return URL(string: trailer) }
         guard trailer.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "-" || $0 == "_" }) else { return nil }

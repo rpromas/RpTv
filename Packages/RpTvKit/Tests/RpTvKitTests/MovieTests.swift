@@ -39,7 +39,7 @@ struct M3UClassificationTests {
 
     @Test(arguments: [
         ("http://h:8080/movie/u/p/1.mkv", nil, M3UEntry.ContentKind.movie),
-        ("http://h:8080/series/u/p/7.mp4", "Drama", .movie), // until series get their own tab
+        ("http://h:8080/series/u/p/7.mp4", "Drama", .movie), // a name that doesn't say which episode
         ("http://h/films/a.mp4", "Films", .movie),
         ("http://h/films/a.MKV?token=1", nil, .movie),
         ("http://h/films/a.avi", "Uncategorized", .movie),
@@ -116,8 +116,9 @@ struct MovieSyncTests {
         #expect(liveCategories.map(\.category.name) == ["News", "24/7 Channels", "Live Events"])
 
         let categories = try await firstValue(database.observeMovieCategories(sourceID: source.id!))
-        #expect(categories.map(\.category.name) == ["Movies: Action", "Series: Drama", "Documentaries"])
-        #expect(categories.map(\.itemCount) == [2, 1, 1])
+        // "A Show S01 E01" is an episode, so "Series: Drama" is a series category.
+        #expect(categories.map(\.category.name) == ["Movies: Action", "Documentaries"])
+        #expect(categories.map(\.itemCount) == [2, 1])
         #expect(categories.allSatisfy { $0.category.kind == .movie })
 
         let action = try await firstValue(database.observeMovies(sourceID: source.id!, categoryID: categories[0].id, sort: .name))
@@ -151,8 +152,9 @@ struct MovieSyncTests {
     @Test func xtreamSyncsMoviesAlongsideChannels() async throws {
         let source = try await xtreamSource()
         let server = RecordingXtreamServer(overrides: manyMovies)
-        #expect(try await service(server).sync(source) == 2 + 3)
-        #expect(Set(server.actions) == ["auth", "get_live_categories", "get_live_streams", "get_vod_categories", "get_vod_streams"])
+        #expect(try await service(server).sync(source) == 2 + 3 + 2) // channels, movies, series
+        #expect(Set(server.actions) == ["auth", "get_live_categories", "get_live_streams", "get_vod_categories", "get_vod_streams",
+                                        "get_series_categories", "get_series"])
 
         let categories = try await firstValue(database.observeMovieCategories(sourceID: source.id!))
         #expect(categories.map(\.category.name) == ["Action", "Drama"])
@@ -200,7 +202,7 @@ struct MovieSyncTests {
         #expect(try await database.movieCount(sourceID: source.id!) == 3)
 
         let count = try await service(RecordingXtreamServer(overrides: manyMovies, failing: ["get_vod_streams"])).sync(source)
-        #expect(count == 2)
+        #expect(count == 2 + 2) // channels and series
         #expect(try await database.movieCount(sourceID: source.id!) == 3)
         #expect(try await database.channelCount(sourceID: source.id!) == 2)
         #expect(try await database.source(id: source.id!)?.lastSyncError == nil)

@@ -4,14 +4,16 @@
 
 import Foundation
 
-/// What a favorite or a recently watched entry points at.
+/// What a favorite, a recently watched entry or watch progress points at.
 public enum ItemKind: String, Codable, Sendable, CaseIterable {
     case channel
     case movie
     case series
+    /// Only progress points at episodes: favorites and recents name the series.
+    case episode
 }
 
-/// Names a channel, movie or series in a way that survives resyncs: a sync deletes and reinserts rows,
+/// Names a channel, movie, series or episode in a way that survives resyncs: a sync deletes and reinserts rows,
 /// so their ids change, but the `stableKey` doesn't.
 public struct ItemKey: Codable, Sendable, Hashable {
     public var sourceID: Int64
@@ -40,6 +42,29 @@ extension Movie {
 extension MovieSummary {
     public var itemKey: ItemKey {
         ItemKey(sourceID: sourceID, kind: .movie, stableKey: stableKey)
+    }
+}
+
+extension Series {
+    public var itemKey: ItemKey {
+        ItemKey(sourceID: sourceID, kind: .series, stableKey: stableKey)
+    }
+}
+
+extension SeriesSummary {
+    public var itemKey: ItemKey {
+        ItemKey(sourceID: sourceID, kind: .series, stableKey: stableKey)
+    }
+}
+
+extension Episode {
+    public var itemKey: ItemKey {
+        ItemKey(sourceID: sourceID, kind: .episode, stableKey: stableKey)
+    }
+
+    /// The series the episode belongs to.
+    public var seriesItemKey: ItemKey {
+        ItemKey(sourceID: sourceID, kind: .series, stableKey: seriesKey)
     }
 }
 

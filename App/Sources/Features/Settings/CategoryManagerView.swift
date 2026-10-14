@@ -26,12 +26,17 @@ struct CategoryManagerView: View {
                 }
                 .onMove(perform: move)
             } footer: {
-                Text(kind == .live
-                     ? "Hidden categories and their channels don't show in Live TV, the guide or search. Locked categories ask for the parental PIN."
-                     : "Hidden categories and their movies don't show in Movies or search. Locked categories ask for the parental PIN.")
+                switch kind {
+                case .live:
+                    Text("Hidden categories and their channels don't show in Live TV, the guide or search. Locked categories ask for the parental PIN.")
+                case .movie:
+                    Text("Hidden categories and their movies don't show in Movies or search. Locked categories ask for the parental PIN.")
+                case .series:
+                    Text("Hidden categories and their series don't show in Series or search. Locked categories ask for the parental PIN.")
+                }
             }
         }
-        .navigationTitle(kind == .live ? "Live TV Categories" : "Movie Categories")
+        .navigationTitle(Self.title(kind))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             if categories.count > 1 {
@@ -162,6 +167,14 @@ struct CategoryManagerView: View {
         let database = model.database
         model.perform {
             try await database.reorderCategories(sourceID: sourceID, kind: kind, remoteIDs: remoteIDs)
+        }
+    }
+
+    static func title(_ kind: MediaCategory.Kind) -> String {
+        switch kind {
+        case .live: "Live TV Categories"
+        case .movie: "Movie Categories"
+        case .series: "Series Categories"
         }
     }
 }

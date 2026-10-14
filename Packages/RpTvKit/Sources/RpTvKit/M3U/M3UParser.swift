@@ -27,21 +27,31 @@ public struct M3UEntry: Sendable, Hashable {
     public var logo: String? { (attributes["tvg-logo"] ?? attributes["logo"]).nonEmpty }
     public var channelNumber: Int? { (attributes["tvg-chno"] ?? attributes["channel-number"]).flatMap { Int($0) } }
 
-    /// What an entry holds. Series detection comes later; until then series episodes count as movies.
+    /// What an entry holds.
     public enum ContentKind: Sendable, Hashable {
         case live
         case movie
+        /// An episode, whose name gives the series, season and number (see ``EpisodeName``).
+        case episode
     }
 
     /// Xtream `m3u_plus` playlists mix movies and series into the channel list. They show in the URL path
-    /// (`/movie/`, `/series/`), or as a file such as `.mp4` in a group that isn't a live one.
+    /// (`/movie/`, `/series/`), or as a file such as `.mp4` in a group that isn't a live one. Recordings named
+    /// like "Show S01E02" are episodes; a `/series/` entry whose name doesn't say which episode it is counts
+    /// as a movie, so it can still be played.
     public var contentKind: ContentKind {
         let path = (URLComponents(string: url)?.path ?? url).lowercased()
-        if path.contains("/movie/") || path.contains("/series/") { return .movie }
+        if path.contains("/movie/") { return .movie }
+        if path.contains("/series/") { return episodeName == nil ? .movie : .episode }
         let fileExtension = (path as NSString).pathExtension
-        if Self.vodExtensions.contains(fileExtension), !Self.isLiveGroup(group) { return .movie }
+        if Self.vodExtensions.contains(fileExtension), !Self.isLiveGroup(group) {
+            return episodeName == nil ? .movie : .episode
+        }
         return .live
     }
+
+    /// The series, season and episode number in the entry's name, if it has them.
+    public var episodeName: EpisodeName? { EpisodeName(parsing: name) }
 
     /// File types that are recordings rather than streams. MPEG-TS (`.ts`) is left out: live channels use it.
     static let vodExtensions: Set<String> = ["mp4", "m4v", "mkv", "avi", "mov", "wmv", "flv", "webm", "mpg", "mpeg", "divx", "ogv", "3gp"]

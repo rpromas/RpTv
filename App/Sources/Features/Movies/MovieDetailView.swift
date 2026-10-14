@@ -14,6 +14,7 @@ struct MovieDetailView: View {
     @Environment(\.openURL) private var openURL
     @Environment(\.horizontalSizeClass) private var sizeClass
     @State private var movie: Movie?
+    @State private var progress: PlaybackProgress?
     @State private var isLoadingDetails = false
     @State private var detailsError: String?
 
@@ -47,6 +48,16 @@ struct MovieDetailView: View {
             do {
                 for try await movie in model.database.observeMovie(sourceID: summary.sourceID, stableKey: summary.stableKey) {
                     self.movie = movie
+                }
+            } catch is CancellationError {
+            } catch {
+                model.alertMessage = error.localizedDescription
+            }
+        }
+        .task(id: summary.stableKey) {
+            do {
+                for try await progress in model.database.observeProgress(for: summary.itemKey) {
+                    self.progress = progress
                 }
             } catch is CancellationError {
             } catch {
@@ -100,17 +111,50 @@ struct MovieDetailView: View {
     }
 
     private var actions: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            buttons
+            if let resume = progress?.resumePosition, let fraction = progress?.fraction {
+                HStack(spacing: 10) {
+                    WatchProgressBar(fraction: fraction)
+                        .frame(maxWidth: 200)
+                    if let left = progress?.remainingText {
+                        Text(left)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("Stopped at \(Duration.seconds(resume).formatted(.time(pattern: .hourMinuteSecond)))")
+            }
+        }
+    }
+
+    private var buttons: some View {
         HStack(spacing: 12) {
+            let resume = progress?.resumePosition
             Button {
-                if let movie { model.play(movie) }
+                if let movie { model.play(movie, from: resume) }
             } label: {
-                Label("Play", systemImage: "play.fill")
+                Label(resume == nil ? "Play" : "Resume", systemImage: "play.fill")
                     .frame(maxWidth: sizeClass == .compact ? .infinity : 200)
             }
             .buttonStyle(.glassProminent)
             .controlSize(.large)
             .disabled(movie == nil)
             .accessibilityIdentifier("playMovieButton")
+
+            if resume != nil {
+                Button {
+                    if let movie { model.play(movie) }
+                } label: {
+                    Label("Start Over", systemImage: "arrow.counterclockwise")
+                        .labelStyle(.iconOnly)
+                }
+                .buttonStyle(.glass)
+                .controlSize(.large)
+                .disabled(movie == nil)
+                .accessibilityIdentifier("startOverButton")
+            }
 
             let isFavorite = model.isFavorite(summary.itemKey)
             Button {

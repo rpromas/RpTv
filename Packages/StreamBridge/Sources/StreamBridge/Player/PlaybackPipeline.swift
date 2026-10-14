@@ -21,7 +21,12 @@ final class PlaybackPipeline: @unchecked Sendable {
     enum Message: Sendable {
         case opened(Info)
         case failed(String)
+        /// The video carries closed captions: they're the subtitle track ``captionTrackID``.
+        case foundCaptions
     }
+
+    /// The subtitle track of the closed captions inside the video, which no container lists.
+    static let captionTrackID: Int32 = -608
 
     struct Info: Sendable {
         var duration: TimeInterval?
@@ -55,6 +60,7 @@ final class PlaybackPipeline: @unchecked Sendable {
         var audioEnd = 0.0
         var videoSize = CGSize.zero
         var subtitles: [Int32: SubtitleTrackCues] = [:]
+        var hasCaptions = false
     }
 
     /// The most read ahead, so memory stays bounded and a paused live stream stops downloading.
@@ -171,9 +177,10 @@ final class PlaybackPipeline: @unchecked Sendable {
             return
         }
         guard !cancelled.isSet else { return }
+        // Before the decoders start, so nothing they report arrives ahead of it.
+        send(.opened(info))
         if let video { spawn("StreamPlayer.video") { $0.runVideo(video) } }
         if !audios.isEmpty { spawn("StreamPlayer.audio") { $0.runAudio() } }
-        send(.opened(info))
 
         var packet: UnsafeMutablePointer<AVPacket>? = av_packet_alloc()
         defer { av_packet_free(&packet) }
@@ -428,16 +435,40 @@ final class PlaybackPipeline: @unchecked Sendable {
         var drained = false
         var suspended = false
         var needsKeyframe = false
+        var captions: SubtitleDecoder?
 
         func reset(to newSerial: Int) {
             serial = newSerial
             decoder.flush()
             converter.reset()
+            captions?.flush()
             videoRenderer.flush()
             drained = false
         }
 
+        /// US broadcasts carry CEA-608 captions in the video frames. They're read from every frame, shown or not,
+        /// since each frame holds only two characters.
+        func readCaptions(of frame: UnsafeMutablePointer<AVFrame>) {
+            guard let data = av_frame_get_side_data(frame, AV_FRAME_DATA_A53_CC), data.pointee.size > 0 else { return }
+            let timestamp = frame.pointee.best_effort_timestamp != AV.noPTS ? frame.pointee.best_effort_timestamp : frame.pointee.pts
+            guard timestamp != AV.noPTS else { return }
+            if captions == nil { captions = try? SubtitleDecoder(captionsIn: stream.timeBase, idBase: 1 << 40) }
+            guard let cue = captions?.decodeCaptions(UnsafeRawBufferPointer(start: data.pointee.data, count: data.pointee.size),
+                                                     timestamp: timestamp) else { return }
+            let now = clock
+            let found = state.withLock { state -> Bool in
+                guard state.serial == serial else { return false }
+                state.subtitles[Self.captionTrackID, default: SubtitleTrackCues()].add(cue)
+                state.subtitles[Self.captionTrackID]!.dropEnded(before: now - 1)
+                guard !state.hasCaptions, !cue.isEmpty else { return false }
+                state.hasCaptions = true
+                return true
+            }
+            if found { send(.foundCaptions) }
+        }
+
         func show(_ frame: UnsafeMutablePointer<AVFrame>) {
+            readCaptions(of: frame)
             let origin = state.withLock { $0.origin }
             if let time = converter.time(of: frame) {
                 // Frames decoded only to reach a seek target, and frames already late, aren't converted.

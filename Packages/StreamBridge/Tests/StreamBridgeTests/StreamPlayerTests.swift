@@ -13,7 +13,7 @@ import Testing
 struct StreamPlayerTests {
     /// Collects a player's events.
     final class Recorder: Sendable {
-        private let events = Mutex<[PlayerEvent]>([])
+        let events = Mutex<[PlayerEvent]>([])
 
         func record(_ event: PlayerEvent) {
             events.withLock { $0.append(event) }

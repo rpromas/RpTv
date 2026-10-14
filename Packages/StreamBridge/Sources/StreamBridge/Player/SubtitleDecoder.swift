@@ -20,6 +20,14 @@ public struct SubtitleCue: Sendable, Identifiable, Equatable {
     public var content: Content
 
     public static func == (lhs: SubtitleCue, rhs: SubtitleCue) -> Bool { lhs.id == rhs.id }
+
+    /// A cue with nothing to show, which clears the screen.
+    var isEmpty: Bool {
+        switch content {
+        case .text(let text): text.isEmpty
+        case .images(let images): images.isEmpty
+        }
+    }
 }
 
 /// A bitmap subtitle picture and where it goes, as fractions (0…1) of the video picture.
@@ -29,11 +37,15 @@ public struct SubtitleImage: @unchecked Sendable {
 }
 
 /// Decodes one subtitle stream into cues. Text formats (SubRip, ASS, WebVTT, mov_text) lose their styling;
-/// bitmap formats become images. Teletext isn't supported (FFmpeg needs libzvbi for it).
+/// bitmap formats become images. Teletext isn't supported (FFmpeg needs libzvbi for it). Also decodes the
+/// closed captions (CEA-608) carried inside video frames.
 final class SubtitleDecoder {
     private let context: UnsafeMutablePointer<AVCodecContext>
     private let timeBase: AVRational
     private let isBitmap: Bool
+    /// How long a text subtitle that doesn't say when it ends stays up, unless the next one replaces it.
+    private let openEndedDuration: Double
+    private let packet: UnsafeMutablePointer<AVPacket>
     private var nextID = 0
 
     /// Whether FFmpeg can decode the stream's subtitles.
@@ -55,11 +67,48 @@ final class SubtitleDecoder {
             $0.pointee.props & AV_CODEC_PROP_BITMAP_SUB != 0
         } ?? false
         nextID = idBase
+        openEndedDuration = 5
+        packet = av_packet_alloc()
+    }
+
+    /// A decoder for the CEA-608 closed captions in video frames (`AV_FRAME_DATA_A53_CC`), whose timestamps
+    /// are in `timeBase`.
+    init(captionsIn timeBase: AVRational, idBase: Int) throws {
+        guard let codec = avcodec_find_decoder(AV_CODEC_ID_EIA_608) else { throw PlayerError.unsupportedCodec("eia_608") }
+        context = avcodec_alloc_context3(codec)
+        context.pointee.pkt_timebase = timeBase
+        // By default a caption is only sent once it's taken down, with its full timing: too late to show live.
+        // In real time, every change to the screen is sent as it happens.
+        var options = makeDictionary(["real_time": "1"])
+        defer { av_dict_free(&options) }
+        try check(avcodec_open2(context, codec, &options), "open caption decoder")
+        self.timeBase = timeBase
+        isBitmap = false
+        nextID = idBase
+        // Each change replaces the last; the cap only matters if a stream stops sending captions mid-sentence.
+        openEndedDuration = 10
+        packet = av_packet_alloc()
     }
 
     deinit {
         var context: UnsafeMutablePointer<AVCodecContext>? = context
         avcodec_free_context(&context)
+        var packet: UnsafeMutablePointer<AVPacket>? = packet
+        av_packet_free(&packet)
+    }
+
+    /// Decodes one frame's caption data (`AV_FRAME_DATA_A53_CC`), shown at `timestamp` in the decoder's time base.
+    func decodeCaptions(_ data: UnsafeRawBufferPointer, timestamp: Int64) -> SubtitleCue? {
+        guard let base = data.baseAddress, !data.isEmpty, av_new_packet(packet, Int32(data.count)) >= 0 else { return nil }
+        defer { av_packet_unref(packet) }
+        packet.pointee.data.update(from: base.assumingMemoryBound(to: UInt8.self), count: data.count)
+        packet.pointee.pts = timestamp
+        packet.pointee.dts = timestamp
+        // Each update is the screen as of this frame. (The decoder stamps it with the previous change's time.)
+        guard var cue = decode(packet, videoSize: .zero) else { return nil }
+        cue.start = Double(timestamp) * timeBase.seconds
+        cue.end = cue.start + openEndedDuration
+        return cue
     }
 
     func flush() {
@@ -84,7 +133,7 @@ final class SubtitleDecoder {
         } else if packet.pointee.duration > 0 {
             end = start + Double(packet.pointee.duration) * timeBase.seconds
         } else if !isBitmap {
-            end = start + 5
+            end = start + openEndedDuration
         }
 
         var lines: [String] = []
@@ -185,11 +234,7 @@ struct SubtitleTrackCues {
         if let last = cues.indices.last, cues[last].end > cue.start, cues[last].start <= cue.start {
             cues[last].end = cue.start
         }
-        let isEmpty: Bool = switch cue.content {
-        case .text(let text): text.isEmpty
-        case .images(let images): images.isEmpty
-        }
-        guard !isEmpty else { return }
+        guard !cue.isEmpty else { return }
         let index = cues.lastIndex { $0.start <= cue.start }.map { $0 + 1 } ?? 0
         cues.insert(cue, at: index)
     }

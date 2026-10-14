@@ -31,6 +31,8 @@ public final class StreamPlayer: @unchecked Sendable {
     private var status = PlayerStatus.loading
     private var wantsToPlay = true
     private var rate: Float = 1
+    /// Live streams follow their buffer level instead of the chosen speed.
+    private var liveRate: LiveRateController?
     private var clockStarted = false
     private var seekRequests = 0
     private var waitStarted = Date()
@@ -78,6 +80,7 @@ public final class StreamPlayer: @unchecked Sendable {
             reportedCueID = nil
             reportedVideoSize = .zero
             timeOffset.withLock { $0 = 0 }
+            liveRate = source.isLive ? LiveRateController(target: source.buffer ?? Self.defaultStartBuffer) : nil
             self.onEvent = onEvent
             let pipeline = PlaybackPipeline(source: source, videoRenderer: displayLayer.sampleBufferRenderer,
                                     audioRenderer: audioRenderer, timebase: synchronizer.timebase) { [weak self] message in
@@ -102,7 +105,7 @@ public final class StreamPlayer: @unchecked Sendable {
             wantsToPlay = true
             switch status {
             case .paused:
-                synchronizer.rate = rate
+                synchronizer.rate = playbackRate
                 set(.playing)
             case .ended:
                 seekNow(to: 0)
@@ -127,7 +130,7 @@ public final class StreamPlayer: @unchecked Sendable {
     public func setRate(_ rate: Float) {
         queue.async { [self] in
             self.rate = rate
-            if status == .playing { synchronizer.rate = rate }
+            if status == .playing { synchronizer.rate = playbackRate }
         }
     }
 
@@ -186,6 +189,12 @@ public final class StreamPlayer: @unchecked Sendable {
             self.info = info
             emit(.duration(info.duration))
             emit(.tracks(info.tracks))
+        case .foundCaptions:
+            guard var info, !info.tracks.contains(where: { $0.id == PlaybackPipeline.captionTrackID }) else { return }
+            info.tracks.append(PlayerTrack(id: PlaybackPipeline.captionTrackID, kind: .subtitle, title: nil, language: nil,
+                                           codec: "eia_608", channels: 0, isSelected: false))
+            self.info = info
+            emit(.tracks(info.tracks))
         case .failed(let message):
             timer?.cancel()
             synchronizer.rate = 0
@@ -230,8 +239,13 @@ public final class StreamPlayer: @unchecked Sendable {
         case .playing:
             if !state.reachedEnd, let buffered = pipeline.bufferedUntil(lenient: true), buffered < clock + 0.1 {
                 synchronizer.rate = 0
+                liveRate?.reset()
                 waitStarted = Date()
                 set(.buffering)
+            } else if !state.reachedEnd, liveRate != nil, let buffered = pipeline.bufferedUntil(lenient: true) {
+                let previous = playbackRate
+                _ = liveRate?.update(buffered: buffered - clock, interval: 0.05)
+                if playbackRate != previous { synchronizer.rate = playbackRate }
             } else if state.reachedEnd, !hasVideo || state.videoEndedSerial == state.serial,
                       !hasAudio || state.audioEndedSerial == state.serial,
                       clock >= max(state.videoEnd, state.audioEnd) - 0.05 {
@@ -256,6 +270,11 @@ public final class StreamPlayer: @unchecked Sendable {
         report()
     }
 
+    /// The chosen speed for finite media; the drift-correcting one for live streams.
+    private var playbackRate: Float {
+        liveRate?.rate ?? rate
+    }
+
     private var startBuffer: Double {
         pipeline?.source.buffer ?? Self.defaultStartBuffer
     }
@@ -264,9 +283,9 @@ public final class StreamPlayer: @unchecked Sendable {
         if !clockStarted {
             clockStarted = true
             if pipeline?.source.isLive == true, seekRequests == 0 { timeOffset.withLock { $0 = origin } }
-            synchronizer.setRate(wantsToPlay ? rate : 0, time: CMTime(seconds: origin, preferredTimescale: 90_000))
+            synchronizer.setRate(wantsToPlay ? playbackRate : 0, time: CMTime(seconds: origin, preferredTimescale: 90_000))
         } else if wantsToPlay {
-            synchronizer.rate = rate
+            synchronizer.rate = playbackRate
         }
         set(wantsToPlay ? .playing : .paused)
     }

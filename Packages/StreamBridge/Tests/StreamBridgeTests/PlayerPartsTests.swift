@@ -165,3 +165,51 @@ struct AudioLayoutTests {
         #expect(try labels("22.2") == nil)
     }
 }
+
+struct LiveRateControllerTests {
+    /// Feeds `seconds` of updates at 20 a second with the buffer at `buffered`, and returns the final speed.
+    private func run(_ controller: inout LiveRateController, buffered: Double, for seconds: Double) -> Float {
+        var rate: Float = 1
+        for _ in 0..<Int(seconds * 20) { rate = controller.update(buffered: buffered, interval: 0.05) }
+        return rate
+    }
+
+    @Test func holdsSpeedAroundTheTarget() {
+        var controller = LiveRateController(target: 2)
+        #expect(run(&controller, buffered: 2, for: 30) == 1)
+        #expect(run(&controller, buffered: 1.5, for: 30) == 1)
+        #expect(run(&controller, buffered: 5, for: 30) == 1)
+    }
+
+    @Test func slowsDownAsTheBufferDrains() {
+        var controller = LiveRateController(target: 2)
+        _ = run(&controller, buffered: 2, for: 10)
+        #expect(run(&controller, buffered: 0.8, for: 30) == LiveRateController.slow)
+        // Stays slow until the buffer is back at the target, not just above the trigger.
+        #expect(run(&controller, buffered: 1.6, for: 30) == LiveRateController.slow)
+        #expect(run(&controller, buffered: 2.2, for: 30) == 1)
+    }
+
+    @Test func speedsUpWhenDelayPilesUp() {
+        var controller = LiveRateController(target: 1)
+        _ = run(&controller, buffered: 1, for: 10)
+        #expect(run(&controller, buffered: 8, for: 30) == LiveRateController.fast)
+        #expect(run(&controller, buffered: 3, for: 30) == LiveRateController.fast)
+        #expect(run(&controller, buffered: 1.5, for: 30) == 1)
+    }
+
+    @Test func ignoresBriefDips() {
+        var controller = LiveRateController(target: 2)
+        _ = run(&controller, buffered: 2, for: 10)
+        // Half a second of jitter barely moves a ten-second average.
+        #expect(run(&controller, buffered: 0.2, for: 0.5) == 1)
+    }
+
+    @Test func resets() {
+        var controller = LiveRateController(target: 2)
+        _ = run(&controller, buffered: 0.5, for: 30)
+        controller.reset()
+        #expect(controller.rate == 1)
+        #expect(controller.average == nil)
+    }
+}

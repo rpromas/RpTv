@@ -182,7 +182,9 @@ final class FFmpegPlayerEngine: PlayerEngine {
     /// "French", or "English (Dolby Digital 5.1)" when another audio track is also in English.
     static func name(of track: PlayerTrack, number: Int, among tracks: [PlayerTrack]) -> String {
         func base(_ track: PlayerTrack, _ number: Int) -> String {
-            track.title ?? TrackLanguage.displayName(track.language) ?? "Track \(number)"
+            // The captions inside the video have no title or language.
+            if track.codec == "eia_608" { return "Closed Captions" }
+            return track.title ?? TrackLanguage.displayName(track.language) ?? "Track \(number)"
         }
         let name = base(track, number)
         let isAmbiguous = tracks.enumerated().contains { $0.element.id != track.id && base($0.element, $0.offset + 1) == name }

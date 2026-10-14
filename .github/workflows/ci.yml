@@ -13,8 +13,9 @@ jobs:
       - uses: ./.github/actions/setup
       - name: Core tests
         run: swift test --package-path Packages/RpTvKit
+      # FFmpeg's simulator slice is arm64 only, so leave out the x86_64 a generic simulator build adds.
       - name: Build app
         run: |
           xcodebuild -project RpTv.xcodeproj -scheme RpTv \
             -destination 'generic/platform=iOS Simulator' \
-            CODE_SIGNING_ALLOWED=NO build
+            ARCHS=arm64 CODE_SIGNING_ALLOWED=NO build

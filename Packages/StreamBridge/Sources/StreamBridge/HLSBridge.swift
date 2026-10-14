@@ -86,7 +86,7 @@ public final class HLSBridge: Sendable {
 }
 
 /// Shared between the bridge and its thread; FFmpeg's blocking calls poll it through their interrupt callback.
-private final class CancellationFlag: Sendable {
+final class CancellationFlag: Sendable {
     private let value = Atomic<Bool>(false)
 
     var isSet: Bool { value.load(ordering: .relaxed) }
@@ -201,7 +201,7 @@ private final class Pipeline {
         )
 
         var options: [String: String] = [
-            // Give up on a dead server instead of hanging; the player then falls back to VLC.
+            // Give up on a dead server instead of hanging; the player then falls back to the FFmpeg player.
             "rw_timeout": "15000000",
             "analyzeduration": "3000000",
             "probesize": "3000000",

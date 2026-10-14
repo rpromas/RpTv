@@ -131,7 +131,7 @@ final class PlayerSession: Identifiable {
         PlaybackCoordinator { kind in
             switch kind {
             case .native: AVPlayerEngine()
-            case .vlc: VLCPlayerEngine()
+            case .ffmpeg: FFmpegPlayerEngine()
             case .bridge: BridgedPlayerEngine()
             }
         }

@@ -314,6 +314,12 @@ public final class AppDatabase: Sendable {
             try rebuildSearchIndex(db, Self.seriesSearchTable)
         }
 
+        // VLC was replaced by RpTv's own FFmpeg player.
+        migrator.registerMigration("v9") { db in
+            try db.execute(sql: "UPDATE source SET enginePreference = ? WHERE enginePreference = 'vlc'",
+                           arguments: [EnginePreference.ffmpeg.rawValue])
+        }
+
         return migrator
     }
 

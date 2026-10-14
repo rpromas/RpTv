@@ -13,14 +13,35 @@ public enum PlaybackState: Sendable, Equatable {
     case failed(String)
 }
 
-public enum PlayerEngineKind: String, Sendable, Codable, CaseIterable {
+public enum PlayerEngineKind: Sendable, Codable, CaseIterable {
     /// AVPlayer: HLS and progressive MP4, with system PiP, AirPlay and Now Playing.
     case native
-    /// VLCKit: everything else (raw MPEG-TS, MKV, RTMP, uncommon codecs).
-    case vlc
+    /// RpTv's FFmpeg player: everything else (raw MPEG-TS, MKV, RTMP, uncommon codecs).
+    case ffmpeg
     /// FFmpeg repackages the stream as local HLS (re-encoding what Apple can't decode) and AVPlayer plays that.
-    /// Slower to start than VLC, but AirPlay can carry its video. Used for VLC streams while AirPlay is on.
+    /// Slower to start than the FFmpeg player, but AirPlay can carry its video. Stands in for the FFmpeg
+    /// player while AirPlay is on.
     case bridge
+}
+
+extension PlayerEngineKind: RawRepresentable {
+    public init?(rawValue: String) {
+        switch rawValue {
+        case "native": self = .native
+        // Saved before the FFmpeg player replaced VLC.
+        case "ffmpeg", "vlc": self = .ffmpeg
+        case "bridge": self = .bridge
+        default: return nil
+        }
+    }
+
+    public var rawValue: String {
+        switch self {
+        case .native: "native"
+        case .ffmpeg: "ffmpeg"
+        case .bridge: "bridge"
+        }
+    }
 }
 
 /// An audio or subtitle track the user can pick.
@@ -60,10 +81,30 @@ public enum VideoGravity: String, Sendable, CaseIterable {
     }
 }
 
-public enum EnginePreference: String, Sendable, Codable, CaseIterable {
+public enum EnginePreference: Sendable, Codable, CaseIterable {
     case automatic
     case native
-    case vlc
+    case ffmpeg
+}
+
+extension EnginePreference: RawRepresentable {
+    public init?(rawValue: String) {
+        switch rawValue {
+        case "automatic": self = .automatic
+        case "native": self = .native
+        // Settings and exports from before the FFmpeg player replaced VLC.
+        case "ffmpeg", "vlc": self = .ffmpeg
+        default: return nil
+        }
+    }
+
+    public var rawValue: String {
+        switch self {
+        case .automatic: "automatic"
+        case .native: "native"
+        case .ffmpeg: "ffmpeg"
+        }
+    }
 }
 
 /// A video player backend. The UI talks to engines only through this protocol.
@@ -97,30 +138,31 @@ public protocol PlayerEngine: AnyObject, Observable {
 /// Picks the engine that most likely plays a URL.
 public enum EngineSelector {
     private static let nativeExtensions: Set<String> = ["m3u8", "m3u", "mp4", "m4v", "mov", "m4a", "mp3", "aac"]
-    private static let vlcExtensions: Set<String> = ["ts", "mkv", "avi", "flv", "wmv", "webm", "mpg", "mpeg", "ogv", "3gp", "divx", "vob"]
-    private static let vlcSchemes: Set<String> = ["rtmp", "rtmps", "rtsp", "rtp", "udp", "mms", "mmsh"]
+    private static let ffmpegExtensions: Set<String> = ["ts", "mkv", "avi", "flv", "wmv", "webm", "mpg", "mpeg", "ogv", "3gp", "divx", "vob"]
+    private static let ffmpegSchemes: Set<String> = ["rtmp", "rtmps", "rtsp", "rtp", "udp", "mms", "mmsh"]
 
     public static func engine(for url: URL, preference: EnginePreference = .automatic) -> PlayerEngineKind {
         switch preference {
         case .native: return .native
-        case .vlc: return .vlc
+        case .ffmpeg: return .ffmpeg
         case .automatic: break
         }
-        if let scheme = url.scheme?.lowercased(), vlcSchemes.contains(scheme) { return .vlc }
+        if let scheme = url.scheme?.lowercased(), ffmpegSchemes.contains(scheme) { return .ffmpeg }
         let pathExtension = url.pathExtension.lowercased()
-        if vlcExtensions.contains(pathExtension) { return .vlc }
+        if ffmpegExtensions.contains(pathExtension) { return .ffmpeg }
         if nativeExtensions.contains(pathExtension) { return .native }
-        // Unknown: try native first; the player falls back to VLC if it fails.
+        // Unknown: try native first; the player falls back to FFmpeg if it fails.
         return .native
     }
 
     /// The engine to retry with after `failed` could not play a stream. While AirPlay is on (`prefersBridge`),
-    /// streams AVPlayer can't open go through the bridge before VLC, which can only send sound over AirPlay.
+    /// streams AVPlayer can't open go through the bridge before the FFmpeg player, which can only send sound
+    /// over AirPlay.
     public static func fallback(after failed: PlayerEngineKind, prefersBridge: Bool = false) -> PlayerEngineKind? {
         switch failed {
-        case .native: prefersBridge ? .bridge : .vlc
-        case .bridge: .vlc
-        case .vlc: nil
+        case .native: prefersBridge ? .bridge : .ffmpeg
+        case .bridge: .ffmpeg
+        case .ffmpeg: nil
         }
     }
 }

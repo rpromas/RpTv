@@ -34,7 +34,8 @@ public final class PlaybackCoordinator {
     /// The engine playing the current item. It changes when playback falls back to another engine.
     public private(set) var engine: (any PlayerEngine)?
     public private(set) var item: PlaybackItem?
-    /// Set while AirPlay is on: streams that would play on VLC go through the bridge instead, so the TV gets video.
+    /// Set while AirPlay is on: streams that would play on the FFmpeg player go through the bridge instead, so the
+    /// TV gets video.
     public private(set) var prefersBridge = false
 
     public var state: PlaybackState { engine?.state ?? .idle }
@@ -65,14 +66,14 @@ public final class PlaybackCoordinator {
     }
 
     /// The engine to try first. A forced preference wins; otherwise the engine that last worked for this item,
-    /// otherwise a guess from the URL. With `prefersBridge`, the bridge stands in for VLC.
+    /// otherwise a guess from the URL. With `prefersBridge`, the bridge stands in for the FFmpeg player.
     public static func initialEngine(for item: PlaybackItem, remembered: PlayerEngineKind?,
                                      prefersBridge: Bool = false) -> PlayerEngineKind {
         guard item.enginePreference == .automatic else {
             return EngineSelector.engine(for: item.url, preference: item.enginePreference)
         }
         let kind = remembered ?? EngineSelector.engine(for: item.url)
-        if kind == .vlc || kind == .bridge { return prefersBridge ? .bridge : .vlc }
+        if kind == .ffmpeg || kind == .bridge { return prefersBridge ? .bridge : .ffmpeg }
         return kind
     }
 
@@ -84,11 +85,11 @@ public final class PlaybackCoordinator {
         start(Self.initialEngine(for: item, remembered: remembered, prefersBridge: prefersBridge))
     }
 
-    /// Call when AirPlay turns on or off. Turning it on moves a stream playing on VLC to the bridge.
+    /// Call when AirPlay turns on or off. Turning it on moves a stream playing on the FFmpeg player to the bridge.
     public func setPrefersBridge(_ prefers: Bool) {
         guard prefers != prefersBridge else { return }
         prefersBridge = prefers
-        if prefers, engine?.kind == .vlc, let item, item.enginePreference == .automatic {
+        if prefers, engine?.kind == .ffmpeg, let item, item.enginePreference == .automatic {
             play(item)
         }
     }
@@ -136,8 +137,9 @@ public final class PlaybackCoordinator {
         case .playing where !hasStarted:
             hasStarted = true
             timeoutTask?.cancel()
-            // The bridge is VLC's stand-in for AirPlay: remember the stream as one AVPlayer can't open directly.
-            if item.enginePreference == .automatic { memory.remember(engine.kind == .bridge ? .vlc : engine.kind, for: item.id) }
+            // The bridge stands in for the FFmpeg player during AirPlay: remember the stream as one AVPlayer can't
+            // open directly.
+            if item.enginePreference == .automatic { memory.remember(engine.kind == .bridge ? .ffmpeg : engine.kind, for: item.id) }
         case .failed where !hasStarted:
             fallBack()
         default:

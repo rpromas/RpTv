@@ -17,11 +17,11 @@ struct PlayerVideoView: View {
         } else if let engine = engine as? BridgedPlayerEngine {
             PlayerLayerView(playerLayer: engine.player.playerLayer)
                 .accessibilityIdentifier("bridgedVideo")
-        } else if let engine = engine as? VLCPlayerEngine {
-            VLCVideoSurface(engine: engine)
-                // Each engine draws into its own view: a new engine (after a zap) needs a new surface, not an update.
+        } else if let engine = engine as? FFmpegPlayerEngine {
+            FFmpegVideoView(engine: engine)
+                // Each engine draws into its own layer: a new engine (after a zap) needs a new view, not an update.
                 .id(ObjectIdentifier(engine))
-                .accessibilityIdentifier("vlcVideo")
+                .accessibilityIdentifier("ffmpegVideo")
         } else {
             Color.black
         }

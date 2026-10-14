@@ -85,8 +85,8 @@ struct PlaybackCoordinatorTests {
     // MARK: - Initial engine
 
     @Test(arguments: [
-        ("http://example.com/live/1.ts", PlayerEngineKind.vlc),
-        ("http://example.com/movie.mkv", .vlc),
+        ("http://example.com/live/1.ts", PlayerEngineKind.ffmpeg),
+        ("http://example.com/movie.mkv", .ffmpeg),
         ("http://example.com/live/1.m3u8", .native),
         ("http://example.com/live/1", .native),
     ])
@@ -96,43 +96,43 @@ struct PlaybackCoordinatorTests {
 
     @Test func rememberedEngineWinsOnlyInAutomaticMode() {
         let hls = item("http://example.com/live/1.m3u8")
-        #expect(PlaybackCoordinator.initialEngine(for: hls, remembered: .vlc) == .vlc)
+        #expect(PlaybackCoordinator.initialEngine(for: hls, remembered: .ffmpeg) == .ffmpeg)
 
         let forced = item("http://example.com/live/1.m3u8", preference: .native)
-        #expect(PlaybackCoordinator.initialEngine(for: forced, remembered: .vlc) == .native)
-        let forcedVLC = item("http://example.com/live/1.m3u8", preference: .vlc)
-        #expect(PlaybackCoordinator.initialEngine(for: forcedVLC, remembered: nil) == .vlc)
+        #expect(PlaybackCoordinator.initialEngine(for: forced, remembered: .ffmpeg) == .native)
+        let forcedFFmpeg = item("http://example.com/live/1.m3u8", preference: .ffmpeg)
+        #expect(PlaybackCoordinator.initialEngine(for: forcedFFmpeg, remembered: nil) == .ffmpeg)
     }
 
-    @Test func bridgeStandsInForVLCWhileAirPlaying() {
+    @Test func bridgeStandsInForFFmpegWhileAirPlaying() {
         #expect(PlaybackCoordinator.initialEngine(for: item("http://example.com/live/1.ts"), remembered: nil,
                                                   prefersBridge: true) == .bridge)
-        #expect(PlaybackCoordinator.initialEngine(for: item("http://example.com/live/1.m3u8"), remembered: .vlc,
+        #expect(PlaybackCoordinator.initialEngine(for: item("http://example.com/live/1.m3u8"), remembered: .ffmpeg,
                                                   prefersBridge: true) == .bridge)
         #expect(PlaybackCoordinator.initialEngine(for: item("http://example.com/live/1.m3u8"), remembered: nil,
                                                   prefersBridge: true) == .native)
-        // A forced VLC choice stays VLC.
-        let forcedVLC = item("http://example.com/live/1.ts", preference: .vlc)
-        #expect(PlaybackCoordinator.initialEngine(for: forcedVLC, remembered: nil, prefersBridge: true) == .vlc)
+        // A forced FFmpeg choice stays FFmpeg.
+        let forcedFFmpeg = item("http://example.com/live/1.ts", preference: .ffmpeg)
+        #expect(PlaybackCoordinator.initialEngine(for: forcedFFmpeg, remembered: nil, prefersBridge: true) == .ffmpeg)
     }
 
     // MARK: - Playback and fallback
 
-    @Test func playsTransportStreamsOnVLC() {
+    @Test func playsTransportStreamsOnFFmpeg() {
         let coordinator = coordinator()
         coordinator.play(item("http://example.com/live/1.ts"))
-        #expect(coordinator.engine?.kind == .vlc)
-        #expect(factory.made.map(\.kind) == [.vlc])
+        #expect(coordinator.engine?.kind == .ffmpeg)
+        #expect(factory.made.map(\.kind) == [.ffmpeg])
         #expect(factory.made[0].loadedItems.count == 1)
     }
 
-    @Test func fallsBackToVLCWhenNativeFails() async throws {
+    @Test func fallsBackToFFmpegWhenNativeFails() async throws {
         let coordinator = coordinator()
         coordinator.play(item("http://example.com/live/1.m3u8"))
         #expect(coordinator.engine?.kind == .native)
 
         factory.made[0].state = .failed("Cannot Open")
-        try await eventually { coordinator.engine?.kind == .vlc }
+        try await eventually { coordinator.engine?.kind == .ffmpeg }
         #expect(factory.made[0].isStopped)
         #expect(factory.made[1].loadedItems.map(\.id) == ["http://example.com/live/1.m3u8"])
         #expect(coordinator.state == .loading)
@@ -142,19 +142,19 @@ struct PlaybackCoordinatorTests {
         let coordinator = coordinator()
         coordinator.play(item("http://example.com/live/1.m3u8"))
         factory.made[0].state = .failed("Cannot Open")
-        try await eventually { coordinator.engine?.kind == .vlc }
+        try await eventually { coordinator.engine?.kind == .ffmpeg }
 
-        factory.made[1].state = .failed("VLC failed")
+        factory.made[1].state = .failed("FFmpeg failed")
         try await settle()
         #expect(factory.made.count == 2)
-        #expect(coordinator.state == .failed("VLC failed"))
+        #expect(coordinator.state == .failed("FFmpeg failed"))
     }
 
     @Test func fallsBackWhenLiveStreamDoesNotStartInTime() async throws {
         let coordinator = coordinator(liveStartTimeout: .milliseconds(50))
         coordinator.play(item("http://example.com/live/1"))
         #expect(coordinator.engine?.kind == .native)
-        try await eventually { coordinator.engine?.kind == .vlc }
+        try await eventually { coordinator.engine?.kind == .ffmpeg }
     }
 
     @Test func waitsForVODWithoutTimeout() async throws {
@@ -197,18 +197,18 @@ struct PlaybackCoordinatorTests {
         let coordinator = coordinator()
         coordinator.play(hls)
         factory.made[0].state = .failed("Cannot Open")
-        try await eventually { coordinator.engine?.kind == .vlc }
+        try await eventually { coordinator.engine?.kind == .ffmpeg }
         factory.made[1].state = .playing
-        try await eventually { memory.engine(for: hls.id) == .vlc }
+        try await eventually { memory.engine(for: hls.id) == .ffmpeg }
 
         coordinator.play(hls)
-        #expect(coordinator.engine?.kind == .vlc)
+        #expect(coordinator.engine?.kind == .ffmpeg)
         #expect(factory.made.count == 3)
         #expect(memory.engine(for: "http://example.com/live/other.m3u8") == nil)
     }
 
     @Test func doesNotRememberForcedEngine() async throws {
-        let hls = item("http://example.com/live/1.m3u8", preference: .vlc)
+        let hls = item("http://example.com/live/1.m3u8", preference: .ffmpeg)
         let coordinator = coordinator()
         coordinator.play(hls)
         factory.made[0].state = .playing
@@ -220,15 +220,15 @@ struct PlaybackCoordinatorTests {
         let coordinator = coordinator()
         coordinator.play(item("http://example.com/live/1.m3u8"))
         factory.made[0].state = .failed("Cannot Open")
-        try await eventually { coordinator.engine?.kind == .vlc }
-        factory.made[1].state = .failed("VLC failed")
+        try await eventually { coordinator.engine?.kind == .ffmpeg }
+        factory.made[1].state = .failed("FFmpeg failed")
         try await settle()
 
         coordinator.retry()
         #expect(factory.made[1].isStopped)
         #expect(coordinator.engine?.kind == .native)
         factory.made[2].state = .failed("Cannot Open")
-        try await eventually { coordinator.engine?.kind == .vlc }
+        try await eventually { coordinator.engine?.kind == .ffmpeg }
     }
 
     @Test func stopStopsEngine() {
@@ -242,10 +242,10 @@ struct PlaybackCoordinatorTests {
 
     // MARK: - AirPlay bridge
 
-    @Test func movesFromVLCToBridgeWhenAirPlayStarts() async throws {
+    @Test func movesFromFFmpegToBridgeWhenAirPlayStarts() async throws {
         let coordinator = coordinator()
         coordinator.play(item("http://example.com/live/1.ts"))
-        #expect(coordinator.engine?.kind == .vlc)
+        #expect(coordinator.engine?.kind == .ffmpeg)
 
         coordinator.setPrefersBridge(true)
         #expect(coordinator.engine?.kind == .bridge)
@@ -261,7 +261,7 @@ struct PlaybackCoordinatorTests {
         #expect(factory.made.count == 1)
     }
 
-    @Test func fallsBackFromNativeToBridgeThenVLCWhileAirPlaying() async throws {
+    @Test func fallsBackFromNativeToBridgeThenFFmpegWhileAirPlaying() async throws {
         let coordinator = coordinator()
         coordinator.setPrefersBridge(true)
         coordinator.play(item("http://example.com/live/1"))
@@ -270,14 +270,14 @@ struct PlaybackCoordinatorTests {
         (coordinator.engine as? FakeEngine)?.state = .failed("no")
         try await eventually { coordinator.engine?.kind == .bridge }
         (coordinator.engine as? FakeEngine)?.state = .failed("no")
-        try await eventually { coordinator.engine?.kind == .vlc }
+        try await eventually { coordinator.engine?.kind == .ffmpeg }
     }
 
-    @Test func remembersBridgedStreamsAsVLC() async throws {
+    @Test func remembersBridgedStreamsAsFFmpeg() async throws {
         let coordinator = coordinator()
         coordinator.setPrefersBridge(true)
         coordinator.play(item("http://example.com/live/1.ts"))
         (coordinator.engine as? FakeEngine)?.play()
-        try await eventually { memory.engine(for: "http://example.com/live/1.ts") == .vlc }
+        try await eventually { memory.engine(for: "http://example.com/live/1.ts") == .ffmpeg }
     }
 }

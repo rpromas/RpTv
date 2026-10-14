@@ -72,7 +72,8 @@ struct PlayerScreen: View {
             if phase != .active { session.saveProgress() }
         }
         .onChange(of: session.zapCount) { chrome.showChannelBanner() }
-        // With AirPlay on, streams VLC would play go through the bridge instead, so the TV gets their video.
+        // With AirPlay on, streams the FFmpeg player would play go through the bridge instead, so the TV gets
+        // their video.
         .onChange(of: airPlay.deviceName != nil, initial: true) { _, isOn in
             session.coordinator.setPrefersBridge(isOn || Self.alwaysBridges)
         }
@@ -123,7 +124,7 @@ struct PlayerScreen: View {
                     .transition(.move(edge: .trailing).combined(with: .opacity))
             }
 
-            if chrome.controlsVisible, session.coordinator.engine is VLCPlayerEngine, let device = airPlay.deviceName {
+            if chrome.controlsVisible, session.coordinator.engine is FFmpegPlayerEngine, let device = airPlay.deviceName {
                 AirPlaySoundOnlyNotice(deviceName: device)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                     .padding(insets)

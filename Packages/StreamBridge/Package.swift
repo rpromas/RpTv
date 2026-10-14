@@ -5,8 +5,9 @@
 
 import PackageDescription
 
-// Turns streams AVPlayer can't open into local HLS it can, so AirPlay can carry their video. Built on FFmpeg,
-// so it lives outside RpTvKit, which stays quick to test.
+// Everything built on FFmpeg: the player for streams AVPlayer can't open (StreamPlayer), and the bridge that turns
+// them into local HLS AVPlayer can play, so AirPlay can carry their video. Lives outside RpTvKit, which stays
+// quick to test.
 let package = Package(
     name: "StreamBridge",
     platforms: [
@@ -15,9 +16,8 @@ let package = Package(
         .macOS("26.0"),
     ],
     products: [
-        // Dynamic on purpose: VLCKit carries its own FFmpeg and exports the same symbols. Linked into the app
-        // directly, some FFmpeg calls would bind to VLCKit's copy. As its own framework, StreamBridge binds every
-        // FFmpeg call to Packages/FFmpeg when it's linked, whatever else the app contains.
+        // Dynamic, so every FFmpeg call binds to Packages/FFmpeg when StreamBridge is linked, whatever else ends
+        // up in the app.
         .library(name: "StreamBridge", type: .dynamic, targets: ["StreamBridge"]),
     ],
     dependencies: [

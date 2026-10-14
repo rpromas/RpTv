@@ -84,27 +84,29 @@ final class AddSourceAndPlayUITests: XCTestCase {
         app.buttons["Close"].tap()
     }
 
-    /// AVPlayer can't play raw MPEG-TS, so this one goes through VLC.
+    /// AVPlayer can't play raw MPEG-TS, so this one goes through the FFmpeg player.
     @MainActor
-    func testTransportStreamPlaysOnVLC() throws {
+    func testTransportStreamPlaysOnFFmpeg() throws {
         let app = try launchWithDemoPlaylist()
 
         let channel = app.buttons["BipBop Segment (MPEG-TS)"].firstMatch
         XCTAssertTrue(channel.waitForExistence(timeout: 30), "Channels didn't appear after adding the source")
         channel.tap()
 
-        let video = app.descendants(matching: .any)["vlcVideo"]
+        let video = app.descendants(matching: .any)["ffmpegVideo"]
         XCTAssertTrue(video.waitForExistence(timeout: 15))
-        // The sample is six seconds long: capture it while it plays.
-        sleep(3)
+        let playPause = app.buttons["playPauseButton"]
+        XCTAssertTrue(playPause.waitForExistence(timeout: 5))
+        expectation(for: NSPredicate(format: "label == 'Pause'"), evaluatedWith: playPause)
+        waitForExpectations(timeout: 10)
         XCTAssertFalse(app.staticTexts["Can't Play This Stream"].exists)
         // Same controls as the native engine.
         _ = showControls(app, over: video)
-        attach(app, "VLC Player")
+        attach(app, "FFmpeg Player")
         app.buttons["Close"].tap()
     }
 
-    /// With AirPlay on, raw MPEG-TS goes through the FFmpeg bridge into AVPlayer instead of VLC.
+    /// With AirPlay on, raw MPEG-TS goes through the FFmpeg bridge into AVPlayer instead of the FFmpeg player.
     @MainActor
     func testTransportStreamPlaysThroughBridge() throws {
         let app = try launchWithDemoPlaylist(arguments: ["--prefer-bridge"])

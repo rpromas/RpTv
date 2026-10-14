@@ -352,7 +352,7 @@ private struct AcknowledgementsView: View {
     private let libraries: [(name: String, license: String, url: String)] = [
         ("GRDB.swift", "MIT License", "https://github.com/groue/GRDB.swift"),
         ("Nuke", "MIT License", "https://github.com/kean/Nuke"),
-        ("VLCKit", "LGPL 2.1", "https://code.videolan.org/videolan/VLCKit"),
+        ("FFmpeg", "LGPL 2.1", "https://ffmpeg.org"),
     ]
 
     var body: some View {
@@ -364,7 +364,7 @@ private struct AcknowledgementsView: View {
                     }
                 }
             } footer: {
-                Text("VLCKit is linked dynamically. You can rebuild RpTv from its source code with a modified version of VLCKit. THIRD_PARTY_NOTICES.md in the RpTv repository explains how.")
+                Text("FFmpeg is linked dynamically. You can rebuild RpTv from its source code with a modified version of FFmpeg. THIRD_PARTY_NOTICES.md in the RpTv repository explains how.")
             }
         }
         .navigationTitle("Acknowledgements")

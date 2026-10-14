@@ -78,6 +78,14 @@ public enum TrackLanguage {
         return alpha2(String(code)) == wanted
     }
 
+    /// The language's name in the user's language ("French" for `fre`), or `nil` when the tag isn't a known
+    /// language.
+    public static func displayName(_ tag: String?) -> String? {
+        guard let tag, let code = tag.split(whereSeparator: { $0 == "-" || $0 == "_" }).first,
+              let alpha2 = alpha2(String(code)) else { return nil }
+        return Locale.current.localizedString(forLanguageCode: alpha2)
+    }
+
     /// The two-letter code of a two- or three-letter one, or the code itself when there's none.
     static func alpha2(_ code: String) -> String? {
         var code = code.trimmingCharacters(in: .whitespaces).lowercased()

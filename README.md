@@ -19,14 +19,14 @@ A free, open-source IPTV player for iPhone and iPad, built with SwiftUI for iOS 
 - **Parental controls:** a 4-digit PIN, with optional Face ID or Touch ID, locks the categories you pick. Their channels, movies and series stay out of lists, search, favorites and recents until the PIN is entered, and lock again when the app goes to the background.
 - **Sources:** edit a source's address, login, guide, headers and player at any time. Xtream accounts show their status, expiry date and connections, with a warning a week before they expire. Export your sources to a JSON file (without passwords) and import them on another device.
 - **Settings:** a default player, the live buffer, preferred audio and subtitle languages, how often catalogs and guides refresh, light or dark appearance, and clearing the image cache or guide data.
-- **Playback:** the native AVPlayer engine with Picture in Picture, AirPlay and background audio, and VLC for raw MPEG-TS, MKV, RTMP and other formats AVPlayer can't play. RpTv picks the engine per stream and switches to VLC automatically when the native player fails. You can also force one engine per source.
+- **Playback:** the native AVPlayer engine with Picture in Picture, AirPlay and background audio, and RpTv's own FFmpeg player for raw MPEG-TS, MKV, RTMP and other formats AVPlayer can't play: hardware decoding through VideoToolbox, deinterlacing, multiple audio tracks, text and bitmap subtitles, and Picture in Picture. RpTv picks the engine per stream and switches to FFmpeg automatically when the native player fails. You can also force one engine per source. With AirPlay on, streams AVPlayer can't open are converted to HLS on the device so the TV gets their video.
 - **Privacy:** no analytics and no accounts. Xtream passwords are stored in the iOS keychain, never in the database.
 
 ### Roadmap
 
 - [x] Phase 1: foundation. M3U and Xtream sources, Live TV browsing, native playback.
 - [x] Phase 2: full player.
-  - [x] VLCKit engine with automatic fallback for MPEG-TS/MKV.
+  - [x] FFmpeg engine with automatic fallback for MPEG-TS/MKV (replaced VLCKit).
   - [x] Custom controls, track selection, channel zapping, AirPlay bridge.
 - [x] Phase 3: TV guide (XMLTV). Now/next, EPG grid, catch-up.
 - [x] Phase 4: movies and series.
@@ -38,7 +38,7 @@ A free, open-source IPTV player for iPhone and iPad, built with SwiftUI for iOS 
 
 ## Building
 
-Requirements: Xcode 26, [XcodeGen](https://github.com/yonaskolb/XcodeGen) and NASM (`brew install xcodegen nasm`). The first build downloads the VLCKit binary (about 900 MB).
+Requirements: Xcode 26, [XcodeGen](https://github.com/yonaskolb/XcodeGen) and NASM (`brew install xcodegen nasm`).
 
 FFmpeg is built from source, from the `Vendor/FFmpeg` submodule. Build it once after cloning, and again whenever the submodule moves to a new tag:
 
@@ -82,7 +82,7 @@ TEST_RUNNER_RPTV_GUIDE_PLAYLIST_URL=http://127.0.0.1:8765/playlist.m3u \
 
 `testTransportStreamPlaysThroughBridge` launches with `--prefer-bridge`, which turns the AirPlay bridge on without AirPlay (the simulator has none).
 
-`Support/demo-playlist.m3u` contains only Apple's public sample streams: HLS, plus one raw MPEG-TS segment that exercises the VLC engine, and a WWDC session MP4 that shows up under Movies. It also serves as the demo source for App Review.
+`Support/demo-playlist.m3u` contains only Apple's public sample streams: HLS, plus one raw MPEG-TS segment that exercises the FFmpeg engine, and a WWDC session MP4 that shows up under Movies. It also serves as the demo source for App Review.
 
 ## Project layout
 
@@ -108,4 +108,4 @@ Config/              Build settings (signing; your Local.xcconfig with the team 
 
 ## License
 
-[Mozilla Public License 2.0](LICENSE). Third-party libraries: [GRDB.swift](https://github.com/groue/GRDB.swift) (MIT), [Nuke](https://github.com/kean/Nuke) (MIT), [VLCKit](https://code.videolan.org/videolan/VLCKit) (LGPL-2.1, dynamically linked) and [FFmpeg](https://ffmpeg.org) (LGPL-2.1, LGPL components only, dynamically linked). See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md), which also explains how to rebuild RpTv with a modified VLCKit or FFmpeg.
+[Mozilla Public License 2.0](LICENSE). Third-party libraries: [GRDB.swift](https://github.com/groue/GRDB.swift) (MIT), [Nuke](https://github.com/kean/Nuke) (MIT) and [FFmpeg](https://ffmpeg.org) (LGPL-2.1, LGPL components only, dynamically linked). See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md), which also explains how to rebuild RpTv with a modified FFmpeg.

@@ -59,7 +59,7 @@ struct EditSourceView: View {
                     Picker("Player", selection: $edit.enginePreference) {
                         Text("Default (\(model.settings.defaultEngine.title))").tag(EnginePreference.automatic)
                         Text(EnginePreference.native.title).tag(EnginePreference.native)
-                        Text(EnginePreference.vlc.title).tag(EnginePreference.vlc)
+                        Text(EnginePreference.ffmpeg.title).tag(EnginePreference.ffmpeg)
                     }
                 } footer: {
                     Text(edit.enginePreference == .automatic
@@ -162,18 +162,18 @@ extension EnginePreference {
         switch self {
         case .automatic: "Automatic"
         case .native: "Native"
-        case .vlc: "VLC"
+        case .ffmpeg: "FFmpeg"
         }
     }
 
     var explanation: String {
         switch self {
         case .automatic:
-            "Automatic picks a player for each stream, and switches to VLC when the native player can't play it."
+            "Automatic picks a player for each stream, and switches to FFmpeg when the native player can't play it."
         case .native:
             "The native player supports Picture in Picture and AirPlay but not every stream format."
-        case .vlc:
-            "VLC plays almost any stream format but doesn't support Picture in Picture or AirPlay video."
+        case .ffmpeg:
+            "FFmpeg plays almost any stream format. Over AirPlay it only sends sound."
         }
     }
 }

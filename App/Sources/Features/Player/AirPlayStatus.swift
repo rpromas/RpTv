@@ -52,8 +52,8 @@ struct AirPlayPlaceholder: View {
     }
 }
 
-/// Shown when a stream still plays on VLC during AirPlay (the bridge couldn't convert it, or the source forces
-/// VLC). VLC decodes video on the device, so AirPlay only carries its sound.
+/// Shown when a stream still plays on the FFmpeg player during AirPlay (the bridge couldn't convert it, or the
+/// source forces FFmpeg). That player decodes video on the device, so AirPlay only carries its sound.
 struct AirPlaySoundOnlyNotice: View {
     let deviceName: String
 
@@ -64,7 +64,7 @@ struct AirPlaySoundOnlyNotice: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Sound only on \(deviceName)")
                     .font(.subheadline.weight(.semibold))
-                Text("This stream couldn't be converted for AirPlay, so it plays through VLC, which can't send video.")
+                Text("This stream couldn't be converted for AirPlay, so only its sound plays there.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

@@ -102,14 +102,14 @@ struct CatalogSyncTests {
     @Test func enginePreferenceSurvivesResyncAndReachesPlayback() async throws {
         let source = try await database.insertSource(Source(name: "Local", kind: .m3u, location: "sample.m3u", isLocalFile: true))
         #expect(source.enginePreference == .automatic)
-        try await database.modifySource(id: source.id!) { $0.enginePreference = .vlc }
+        try await database.modifySource(id: source.id!) { $0.enginePreference = .ffmpeg }
         try await service.sync(source)
 
         let saved = try #require(try await database.source(id: source.id!))
-        #expect(saved.enginePreference == .vlc)
+        #expect(saved.enginePreference == .ffmpeg)
         #expect(saved.lastSyncedAt != nil)
         let channels = try await firstValue(database.observeChannels(sourceID: source.id!, categoryID: nil))
-        #expect(try PlaybackResolver(credentials: credentials).item(for: channels[0], in: saved).enginePreference == .vlc)
+        #expect(try PlaybackResolver(credentials: credentials).item(for: channels[0], in: saved).enginePreference == .ffmpeg)
     }
 
     @Test func deletingSourceCascades() async throws {
@@ -124,10 +124,10 @@ struct EngineSelectorTests {
     @Test(arguments: [
         ("http://h/live/1.m3u8", PlayerEngineKind.native),
         ("http://h/movie/1.MP4", .native),
-        ("http://h/live/1.ts", .vlc),
-        ("http://h/movie/1.mkv", .vlc),
-        ("rtmp://h/live/stream", .vlc),
-        ("udp://@239.0.0.1:1234", .vlc),
+        ("http://h/live/1.ts", .ffmpeg),
+        ("http://h/movie/1.mkv", .ffmpeg),
+        ("rtmp://h/live/stream", .ffmpeg),
+        ("udp://@239.0.0.1:1234", .ffmpeg),
         ("http://h:8080/12345", .native),
     ])
     func picksEngineByURL(url: String, expected: PlayerEngineKind) throws {
@@ -137,7 +137,7 @@ struct EngineSelectorTests {
     @Test func honoursForcedPreference() throws {
         let url = try #require(URL(string: "http://h/live/1.ts"))
         #expect(EngineSelector.engine(for: url, preference: .native) == .native)
-        #expect(EngineSelector.fallback(after: .native) == .vlc)
-        #expect(EngineSelector.fallback(after: .vlc) == nil)
+        #expect(EngineSelector.fallback(after: .native) == .ffmpeg)
+        #expect(EngineSelector.fallback(after: .ffmpeg) == nil)
     }
 }

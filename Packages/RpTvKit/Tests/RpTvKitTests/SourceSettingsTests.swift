@@ -9,7 +9,7 @@ import Testing
 struct SourceExportTests {
     private let sources = [
         Source(id: 1, name: "Home", kind: .xtream, location: "http://example.com:8080", username: "demo",
-               credentialKey: "key-1", userAgent: "Agent/1", referrer: "http://ref.example.com", enginePreference: .vlc),
+               credentialKey: "key-1", userAgent: "Agent/1", referrer: "http://ref.example.com", enginePreference: .ffmpeg),
         Source(id: 2, name: "Playlist", kind: .m3u, location: "http://example.com/list.m3u", epgURL: "http://example.com/guide.xml"),
         Source(id: 3, name: "File", kind: .m3u, location: "ABC.m3u", isLocalFile: true),
     ]
@@ -35,7 +35,7 @@ struct SourceExportTests {
         #expect(xtream.username == "demo")
         #expect(xtream.credentialKey == "new-key")
         #expect(xtream.httpHeaders == ["User-Agent": "Agent/1", "Referer": "http://ref.example.com"])
-        #expect(xtream.enginePreference == .vlc)
+        #expect(xtream.enginePreference == .ffmpeg)
         #expect(xtream.id == nil)
         #expect(decoded.sources[1].makeSource().epgURL == "http://example.com/guide.xml")
     }
@@ -90,12 +90,12 @@ struct PlaybackPreferencesTests {
     }
 
     @Test func appliesTheDefaultEngineAndPreferences() throws {
-        let preferences = PlaybackPreferences(engine: .vlc, liveBuffer: 5, audioLanguage: "fr", subtitleLanguage: "en")
+        let preferences = PlaybackPreferences(engine: .ffmpeg, liveBuffer: 5, audioLanguage: "fr", subtitleLanguage: "en")
         let resolver = PlaybackResolver(credentials: InMemoryCredentialStore(), preferences: preferences)
         let channel = Channel(sourceID: 1, stableKey: "c", name: "C", streamURL: "http://example.com/c.m3u8", sortIndex: 0)
 
         let item = try resolver.item(for: channel, in: Source(id: 1, name: "A", kind: .m3u, location: "http://example.com"))
-        #expect(item.enginePreference == .vlc)
+        #expect(item.enginePreference == .ffmpeg)
         #expect(item.liveBuffer == 5)
         #expect(item.audioLanguage == "fr")
         #expect(item.subtitleLanguage == "en")

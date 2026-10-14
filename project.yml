@@ -26,11 +26,6 @@ packages:
   Nuke:
     url: https://github.com/kean/Nuke
     from: "13.2.0"
-  # Official VideoLAN binary target (dynamic VLCKit.framework, LGPL-2.1). Only 4.x alpha builds exist so far,
-  # so the version is pinned exactly. See THIRD_PARTY_NOTICES.md.
-  VLCKit:
-    url: https://code.videolan.org/videolan/VLCKit.git
-    exactVersion: "4.0.0-a25"
 
 targets:
   RpTv:
@@ -48,7 +43,6 @@ targets:
         product: Nuke
       - package: Nuke
         product: NukeUI
-      - package: VLCKit
       # A dynamic framework (see its Package.swift), so it has to be embedded.
       - package: StreamBridge
         embed: true

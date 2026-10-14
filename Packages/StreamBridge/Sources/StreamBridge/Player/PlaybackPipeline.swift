@@ -536,7 +536,13 @@ final class PlaybackPipeline: @unchecked Sendable {
             do {
                 try converter.convert(frame) { picture in
                     if clockIsRunning, picture.time + picture.duration < clock { return }
-                    guard waitUntilReady(serial: serial, queue: queue, { videoRenderer.isReadyForMoreMediaData }),
+                    guard waitUntilReady(serial: serial, queue: queue, {
+                        // iOS interrupts the layer when the app leaves; it takes no more pictures until flushed.
+                        if videoRenderer.status == .failed || videoRenderer.requiresFlushToResumeDecoding {
+                            videoRenderer.flush()
+                        }
+                        return videoRenderer.isReadyForMoreMediaData
+                    }),
                           let sample = picture.sampleBuffer(format: &format) else { return }
                     videoRenderer.enqueue(sample)
                     let size = CGSize(width: CVPixelBufferGetWidth(picture.pixelBuffer),
@@ -580,6 +586,8 @@ final class PlaybackPipeline: @unchecked Sendable {
                     suspended = false
                     decoder.flush()
                     converter.reset()
+                    // Drops the pictures queued before the app left, now late, and any interruption.
+                    videoRenderer.flush()
                     needsKeyframe = true
                 }
                 if needsKeyframe {

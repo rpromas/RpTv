@@ -238,8 +238,10 @@ final class PlaybackPipeline: @unchecked Sendable {
         var options: [String: String] = [
             // Give up on a dead server instead of hanging.
             "rw_timeout": "15000000",
-            // Live channels are probed for less time so they start sooner.
-            "analyzeduration": source.isLive ? "1500000" : "3000000",
+            // MPEG-TS has no header, so FFmpeg reads all of this before anything plays: on a channel sent in real
+            // time, that much waiting. Live channels get half a second, which finds every stream; the decoders
+            // learn the rest (such as the picture size, sent with the next keyframe).
+            "analyzeduration": source.isLive ? "500000" : "3000000",
             "probesize": "3000000",
         ]
         if ["http", "https"].contains(source.url.scheme?.lowercased()) {

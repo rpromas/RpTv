@@ -40,8 +40,12 @@ public final class StreamPlayer: @unchecked Sendable {
     private var reportedCueID: Int?
     private var reportedVideoSize = CGSize.zero
 
-    /// Seconds of stream read ahead before the clock first starts, and after it stalled.
+    /// Seconds of stream read ahead before the clock first starts, when the source doesn't say.
     private static let defaultStartBuffer = 1.0
+    /// A live stream with no buffer chosen starts on this much, then plays a little slower until it has
+    /// ``defaultStartBuffer`` (``LiveRateController``), so changing channels doesn't wait for the whole cushion.
+    private static let liveStartBuffer = 0.5
+    /// Seconds read ahead before playing again after a stall.
     private static let rebuffer = 2.0
 
     public init() {
@@ -275,7 +279,8 @@ public final class StreamPlayer: @unchecked Sendable {
     }
 
     private var startBuffer: Double {
-        pipeline?.source.buffer ?? Self.defaultStartBuffer
+        guard let source = pipeline?.source else { return Self.defaultStartBuffer }
+        return source.buffer ?? (source.isLive ? Self.liveStartBuffer : Self.defaultStartBuffer)
     }
 
     private func resume(from origin: Double) {

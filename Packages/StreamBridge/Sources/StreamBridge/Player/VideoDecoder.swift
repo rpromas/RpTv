@@ -52,6 +52,9 @@ final class VideoDecoder {
         context.pointee.pkt_timebase = stream.timeBase
         context.pointee.framerate = stream.frameRate
         context.pointee.thread_count = 0
+        // Frame threads hold each picture back by one frame per thread, a few tenths of a second before the
+        // first picture of a live stream. Only software decoding needs them.
+        if Self.decodesInHardware(parameters.pointee.codec_id) { context.pointee.thread_type = FF_THREAD_SLICE }
         if av_hwdevice_ctx_create(&device, AV_HWDEVICE_TYPE_VIDEOTOOLBOX, nil, nil, 0) >= 0 {
             context.pointee.hw_device_ctx = av_buffer_ref(device)
             // VideoToolbox when it's offered. If it then can't open the stream (MPEG-2 on iPhone), FFmpeg asks
@@ -72,6 +75,19 @@ final class VideoDecoder {
             }
         }
         try check(avcodec_open2(context, codec, nil), "open video decoder")
+    }
+
+    /// Whether this device decodes the codec with VideoToolbox.
+    private static func decodesInHardware(_ codec: AVCodecID) -> Bool {
+        let type: CMVideoCodecType? = switch codec {
+        case AV_CODEC_ID_H264: kCMVideoCodecType_H264
+        case AV_CODEC_ID_HEVC: kCMVideoCodecType_HEVC
+        case AV_CODEC_ID_VP9: kCMVideoCodecType_VP9
+        case AV_CODEC_ID_AV1: kCMVideoCodecType_AV1
+        case AV_CODEC_ID_MPEG2VIDEO: kCMVideoCodecType_MPEG2Video
+        default: nil
+        }
+        return type.map(VTIsHardwareDecodeSupported) ?? false
     }
 
     deinit {

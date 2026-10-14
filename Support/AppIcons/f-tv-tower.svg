@@ -1,0 +1,12 @@
+<!-- This Source Code Form is subject to the terms of the Mozilla Public
+   - License, v. 2.0. If a copy of the MPL was not distributed with this
+   - file, You can obtain one at https://mozilla.org/MPL/2.0/. -->
+<!-- App icon option: The tower with a TV set in place of its observation deck. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024"><rect width="1024" height="1024" fill="#17A361"/>
+<path d="M506,120 L518,120 L526,334 L498,334 Z" fill="#FFFFFF"/>
+<rect x="496" y="190" width="32" height="10" fill="#FFFFFF"/><rect x="490" y="250" width="44" height="12" fill="#FFFFFF"/>
+<path d="M484,600 L540,600 L552,800 C556,840 590,866 660,884 L364,884 C434,866 468,840 472,800 Z" fill="#FFFFFF"/>
+<rect x="464" y="640" width="96" height="16" fill="#FFFFFF"/>
+<rect x="292" y="330" width="440" height="290" rx="56" fill="#FFFFFF"/>
+<rect x="330" y="368" width="290" height="214" rx="30" fill="#0F5132"/>
+<circle cx="676" cy="430" r="24" fill="#0F5132"/><circle cx="676" cy="512" r="17" fill="#0F5132"/></svg>

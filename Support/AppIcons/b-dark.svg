@@ -1,0 +1,21 @@
+<!-- This Source Code Form is subject to the terms of the Mozilla Public
+   - License, v. 2.0. If a copy of the MPL was not distributed with this
+   - file, You can obtain one at https://mozilla.org/MPL/2.0/. -->
+<!-- App icon option: Dark: green Šilelis TV, white tower, near-black background. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024"><rect width="1024" height="1024" fill="#101614"/>
+<g transform="translate(0.0,20.0) scale(1)"><path d="M508,112 L516,112 L522,268 L502,268 Z" fill="#EDEDE8"/>
+<rect x="499" y="176" width="26" height="9" fill="#EDEDE8"/>
+<rect x="496" y="222" width="32" height="10" fill="#EDEDE8"/>
+<path d="M494,262 L530,262 L540,470 C544,505 570,530 604,548 L420,548 C454,530 480,505 484,470 Z" fill="#EDEDE8"/>
+<rect x="484" y="262" width="56" height="13" fill="#EDEDE8"/>
+<path d="M474,298 L550,298 L602,318 L422,318 Z" fill="#EDEDE8"/>
+<rect x="416" y="318" width="192" height="22" fill="#2FBF71"/>
+<path d="M422,340 L602,340 L552,362 L472,362 Z" fill="#EDEDE8"/>
+<rect x="490" y="386" width="44" height="10" fill="#EDEDE8"/></g>
+<rect x="232" y="870" width="72" height="34" fill="#23935A"/><rect x="720" y="870" width="72" height="34" fill="#23935A"/>
+<rect x="164" y="548" width="696" height="336" rx="28" fill="#2FBF71"/>
+<rect x="204" y="588" width="448" height="256" rx="18" fill="#0B1F15"/>
+<path d="M262,600 C360,594 496,594 594,600 C624,602 638,614 640,646 C644,698 644,734 640,786 C638,818 624,830 594,832 C496,838 360,838 262,832 C232,830 218,818 216,786 C212,734 212,698 216,646 C218,614 232,602 262,600 Z" fill="#17402B"/>
+<circle cx="756" cy="650" r="40" fill="#0B1F15"/><rect x="752" y="616" width="8" height="28" fill="#2FBF71"/>
+<circle cx="756" cy="750" r="30" fill="#0B1F15"/><rect x="752" y="726" width="8" height="22" fill="#2FBF71" transform="rotate(45 756 750)"/>
+<rect x="700" y="806" width="112" height="8" fill="#0B1F15"/><rect x="700" y="824" width="112" height="8" fill="#0B1F15"/></svg>

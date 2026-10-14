@@ -1,0 +1,17 @@
+<!-- This Source Code Form is subject to the terms of the Mozilla Public
+   - License, v. 2.0. If a copy of the MPL was not distributed with this
+   - file, You can obtain one at https://mozilla.org/MPL/2.0/. -->
+<!-- App icon option: Minimal: one white glyph, a TV with the tower as its antenna, on the app green. The current app icon. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024"><rect width="1024" height="1024" fill="#17A361"/>
+<g transform="translate(51.2,49.2) scale(0.9)"><path d="M508,112 L516,112 L522,268 L502,268 Z" fill="#FFFFFF"/>
+<rect x="499" y="176" width="26" height="9" fill="#FFFFFF"/>
+<rect x="496" y="222" width="32" height="10" fill="#FFFFFF"/>
+<path d="M494,262 L530,262 L540,470 C544,505 570,530 604,548 L420,548 C454,530 480,505 484,470 Z" fill="#FFFFFF"/>
+<rect x="484" y="262" width="56" height="13" fill="#FFFFFF"/>
+<path d="M474,298 L550,298 L602,318 L422,318 Z" fill="#FFFFFF"/>
+<rect x="416" y="318" width="192" height="22" fill="#FFFFFF"/>
+<path d="M422,340 L602,340 L552,362 L472,362 Z" fill="#FFFFFF"/>
+<rect x="490" y="386" width="44" height="10" fill="#FFFFFF"/><rect x="416" y="327" width="192" height="5" fill="#17A361"/></g>
+<rect x="212" y="530" width="600" height="340" rx="64" fill="#FFFFFF"/>
+<rect x="256" y="574" width="390" height="252" rx="34" fill="#17A361"/>
+<circle cx="730" cy="648" r="34" fill="#17A361"/><circle cx="730" cy="752" r="22" fill="#17A361"/></svg>

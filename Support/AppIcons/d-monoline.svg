@@ -1,0 +1,12 @@
+<!-- This Source Code Form is subject to the terms of the Mozilla Public
+   - License, v. 2.0. If a copy of the MPL was not distributed with this
+   - file, You can obtain one at https://mozilla.org/MPL/2.0/. -->
+<!-- App icon option: Line drawing: green outlines of the TV and tower on paper. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024"><rect width="1024" height="1024" fill="#F3F0E8"/>
+<path d="M512,130 L512,300" stroke="#157F4B" stroke-width="30" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+<path d="M490,206 L534,206 M482,250 L542,250" stroke="#157F4B" stroke-width="22" fill="none"/>
+<rect x="414" y="296" width="196" height="68" rx="34" stroke="#157F4B" stroke-width="30" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+<path d="M496,364 L486,470 C482,505 462,525 432,540 M528,364 L538,470 C542,505 562,525 592,540" stroke="#157F4B" stroke-width="30" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+<rect x="184" y="540" width="656" height="330" rx="56" stroke="#157F4B" stroke-width="30" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+<rect x="246" y="602" width="380" height="206" rx="30" stroke="#157F4B" stroke-width="30" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+<circle cx="736" cy="662" r="34" stroke="#157F4B" stroke-width="30" stroke-linecap="round" stroke-linejoin="round" fill="none"/><circle cx="736" cy="760" r="22" stroke="#157F4B" stroke-width="30" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>

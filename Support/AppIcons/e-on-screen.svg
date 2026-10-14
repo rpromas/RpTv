@@ -1,0 +1,22 @@
+<!-- This Source Code Form is subject to the terms of the Mozilla Public
+   - License, v. 2.0. If a copy of the MPL was not distributed with this
+   - file, You can obtain one at https://mozilla.org/MPL/2.0/. -->
+<!-- App icon option: Front-on Šilelis with its carry handle, the tower on its green screen. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024"><rect width="1024" height="1024" fill="#0C3B2A"/>
+<path d="M372,272 L372,222 L652,222 L652,272" stroke="#F2EBDD" stroke-width="24" fill="none" stroke-linejoin="round"/>
+<rect x="216" y="772" width="84" height="44" fill="#C9BFA8"/><rect x="724" y="772" width="84" height="44" fill="#C9BFA8"/>
+<rect x="120" y="262" width="784" height="520" rx="56" fill="#F2EBDD"/>
+<rect x="162" y="304" width="488" height="436" rx="44" fill="#1C2A23"/>
+<rect x="182" y="324" width="448" height="396" rx="30" fill="#2FBF71"/>
+<g transform="translate(-24.1,261.9) scale(0.84)"><path d="M508,112 L516,112 L522,268 L502,268 Z" fill="#FFFFFF"/>
+<rect x="499" y="176" width="26" height="9" fill="#FFFFFF"/>
+<rect x="496" y="222" width="32" height="10" fill="#FFFFFF"/>
+<path d="M494,262 L530,262 L540,470 C544,505 570,530 604,548 L420,548 C454,530 480,505 484,470 Z" fill="#FFFFFF"/>
+<rect x="484" y="262" width="56" height="13" fill="#FFFFFF"/>
+<path d="M474,298 L550,298 L602,318 L422,318 Z" fill="#FFFFFF"/>
+<rect x="416" y="318" width="192" height="22" fill="#1C2A23"/>
+<path d="M422,340 L602,340 L552,362 L472,362 Z" fill="#FFFFFF"/>
+<rect x="490" y="386" width="44" height="10" fill="#FFFFFF"/></g>
+<circle cx="776" cy="420" r="48" fill="#1C2A23"/><rect x="771" y="380" width="10" height="34" fill="#F2EBDD"/>
+<circle cx="776" cy="544" r="36" fill="#1C2A23"/><rect x="771" y="514" width="10" height="26" fill="#F2EBDD" transform="rotate(45 776 544)"/>
+<rect x="712" y="626" width="128" height="10" fill="#1C2A23"/><rect x="712" y="650" width="128" height="10" fill="#1C2A23"/><rect x="712" y="674" width="128" height="10" fill="#1C2A23"/></svg>

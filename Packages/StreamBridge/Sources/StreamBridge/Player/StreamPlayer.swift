@@ -189,10 +189,9 @@ public final class StreamPlayer: @unchecked Sendable {
             self.info = info
             emit(.duration(info.duration))
             emit(.tracks(info.tracks))
-        case .foundCaptions:
-            guard var info, !info.tracks.contains(where: { $0.id == PlaybackPipeline.captionTrackID }) else { return }
-            info.tracks.append(PlayerTrack(id: PlaybackPipeline.captionTrackID, kind: .subtitle, title: nil, language: nil,
-                                           codec: "eia_608", channels: 0, isSelected: false))
+        case .foundTrack(let track):
+            guard var info, !info.tracks.contains(where: { $0.id == track.id }) else { return }
+            info.tracks.append(track)
             self.info = info
             emit(.tracks(info.tracks))
         case .failed(let message):

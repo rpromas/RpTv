@@ -21,12 +21,18 @@ final class PlaybackPipeline: @unchecked Sendable {
     enum Message: Sendable {
         case opened(Info)
         case failed(String)
-        /// The video carries closed captions: they're the subtitle track ``captionTrackID``.
-        case foundCaptions
+        /// A subtitle track no container lists: the closed captions inside the video, or a teletext subtitle
+        /// page that showed up.
+        case foundTrack(PlayerTrack)
     }
 
-    /// The subtitle track of the closed captions inside the video, which no container lists.
+    /// The subtitle track of the closed captions inside the video.
     static let captionTrackID: Int32 = -608
+
+    /// The subtitle track of a teletext page: one stream carries several pages, each a track of its own.
+    static func teletextTrackID(stream: Int32, page: TeletextPage) -> Int32 {
+        0x4000_0000 | stream << 12 | Int32(page.magazine << 8 | page.number)
+    }
 
     struct Info: Sendable {
         var duration: TimeInterval?
@@ -83,6 +89,7 @@ final class PlaybackPipeline: @unchecked Sendable {
 
     // The reading thread's own.
     private var subtitleDecoders: [Int32: SubtitleDecoder] = [:]
+    private var teletextDecoders: [Int32: TeletextDecoder] = [:]
     private var timeline = LiveTimeline()
     private var formatStart = 0.0
     private var waitingForKeyframe = true
@@ -283,6 +290,15 @@ final class PlaybackPipeline: @unchecked Sendable {
                 tracks.append(PlayerTrack(id: index, kind: .audio, title: Self.metadata(stream, "title"),
                                           language: Self.metadata(stream, "language"), codec: codec,
                                           channels: Int(parameters.pointee.ch_layout.nb_channels), isSelected: false))
+            case AVMEDIA_TYPE_SUBTITLE where parameters.pointee.codec_id == AV_CODEC_ID_DVB_TELETEXT:
+                let pages = Self.teletextPages(stream)
+                teletextDecoders[index] = TeletextDecoder(listedPages: pages.reduce(into: [:]) { $0[$1.page] = $1.language },
+                                                          idBase: Int(index) << 32)
+                for entry in pages where entry.isSubtitle {
+                    tracks.append(PlayerTrack(id: Self.teletextTrackID(stream: index, page: entry.page), kind: .subtitle,
+                                              title: nil, language: entry.language, codec: codec, channels: 0,
+                                              isSelected: false))
+                }
             case AVMEDIA_TYPE_SUBTITLE:
                 guard SubtitleDecoder.canDecode(parameters),
                       let decoder = try? SubtitleDecoder(stream: stream, idBase: Int(index) << 32) else { continue }
@@ -322,6 +338,23 @@ final class PlaybackPipeline: @unchecked Sendable {
         return Info(duration: duration, isSeekable: isSeekable, hasVideo: video != nil, tracks: tracks)
     }
 
+    /// The pages a teletext stream's descriptor lists. FFmpeg keeps the descriptor's languages in the metadata
+    /// ("eng,fra") and two bytes per page in the extradata: type and magazine, then the page number.
+    private static func teletextPages(_ stream: UnsafeMutablePointer<AVStream>)
+        -> [(page: TeletextPage, language: String?, isSubtitle: Bool)] {
+        let parameters = stream.pointee.codecpar.pointee
+        guard let extradata = parameters.extradata, parameters.extradata_size >= 2 else { return [] }
+        let languages = metadata(stream, "language")?.split(separator: ",").map(String.init) ?? []
+        return (0..<Int(parameters.extradata_size) / 2).map { index in
+            let first = extradata[index * 2], number = Int(extradata[index * 2 + 1])
+            let magazine = Int(first & 7) == 0 ? 8 : Int(first & 7)
+            // Types 2 and 5: subtitles, and subtitles for the hard of hearing.
+            let type = first >> 3
+            let language = index < languages.count ? languages[index] : nil
+            return (TeletextPage(magazine: magazine, number: number), language, type == 2 || type == 5)
+        }
+    }
+
     private static func metadata(_ stream: UnsafeMutablePointer<AVStream>, _ key: String) -> String? {
         guard let entry = av_dict_get(stream.pointee.metadata, key, nil, 0), let value = entry.pointee.value else { return nil }
         let text = String(cString: value).trimmingCharacters(in: .whitespaces)
@@ -346,6 +379,7 @@ final class PlaybackPipeline: @unchecked Sendable {
         let serial = state.withLock { $0.serial } + 1
         for queue in queues.values { queue.flush(serial: serial) }
         for decoder in subtitleDecoders.values { decoder.flush() }
+        for decoder in teletextDecoders.values { decoder.reset() }
         state.withLock {
             $0.serial = serial
             $0.origin = target
@@ -366,7 +400,8 @@ final class PlaybackPipeline: @unchecked Sendable {
         let isVideo = index == video?.index
         let isAudio = audios[index] != nil
         let subtitleDecoder = subtitleDecoders[index]
-        guard isVideo || isAudio || subtitleDecoder != nil else { return }
+        let teletextDecoder = teletextDecoders[index]
+        guard isVideo || isAudio || subtitleDecoder != nil || teletextDecoder != nil else { return }
         let timeBase = input!.pointee.streams[Int(index)]!.pointee.time_base
 
         // Onto the player's timeline.
@@ -374,7 +409,7 @@ final class PlaybackPipeline: @unchecked Sendable {
         if raw != AV.noPTS, timeBase.num > 0 {
             let seconds = Double(raw) * timeBase.seconds
             let offset = !source.isLive ? -formatStart
-                : subtitleDecoder != nil ? timeline.sparseOffset(forRaw: seconds)
+                : subtitleDecoder != nil || teletextDecoder != nil ? timeline.sparseOffset(forRaw: seconds)
                 : timeline.offset(forRaw: seconds, stream: index)
             let ticks = Int64((offset / timeBase.seconds).rounded())
             if packet.pointee.pts != AV.noPTS { packet.pointee.pts += ticks }
@@ -410,6 +445,24 @@ final class PlaybackPipeline: @unchecked Sendable {
             state.withLock {
                 $0.subtitles[index, default: SubtitleTrackCues()].add(cue)
                 $0.subtitles[index]!.dropEnded(before: now - 1)
+            }
+        } else if let teletextDecoder, let time, let data = packet.pointee.data {
+            let found = teletextDecoder.foundPages.count
+            let updates = teletextDecoder.decode(Array(UnsafeBufferPointer(start: data, count: Int(packet.pointee.size))),
+                                                 time: time)
+            let now = clock
+            state.withLock { state in
+                for update in updates {
+                    let track = Self.teletextTrackID(stream: index, page: update.page)
+                    state.subtitles[track, default: SubtitleTrackCues()].add(update.cue)
+                    state.subtitles[track]!.dropEnded(before: now - 1)
+                }
+            }
+            let language = Self.metadata(input!.pointee.streams[Int(index)]!, "language")?.split(separator: ",").first.map(String.init)
+            for page in teletextDecoder.foundPages[found...] {
+                send(.foundTrack(PlayerTrack(id: Self.teletextTrackID(stream: index, page: page), kind: .subtitle,
+                                             title: nil, language: language, codec: "dvb_teletext", channels: 0,
+                                             isSelected: false)))
             }
         }
     }
@@ -464,7 +517,10 @@ final class PlaybackPipeline: @unchecked Sendable {
                 state.hasCaptions = true
                 return true
             }
-            if found { send(.foundCaptions) }
+            if found {
+                send(.foundTrack(PlayerTrack(id: Self.captionTrackID, kind: .subtitle, title: nil, language: nil,
+                                             codec: "eia_608", channels: 0, isSelected: false)))
+            }
         }
 
         func show(_ frame: UnsafeMutablePointer<AVFrame>) {

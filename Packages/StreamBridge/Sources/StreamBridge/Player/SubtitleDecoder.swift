@@ -37,8 +37,8 @@ public struct SubtitleImage: @unchecked Sendable {
 }
 
 /// Decodes one subtitle stream into cues. Text formats (SubRip, ASS, WebVTT, mov_text) lose their styling;
-/// bitmap formats become images. Teletext isn't supported (FFmpeg needs libzvbi for it). Also decodes the
-/// closed captions (CEA-608) carried inside video frames.
+/// bitmap formats become images. Also decodes the closed captions (CEA-608) carried inside video frames.
+/// Teletext has its own decoder, ``TeletextDecoder``, since FFmpeg's needs libzvbi.
 final class SubtitleDecoder {
     private let context: UnsafeMutablePointer<AVCodecContext>
     private let timeBase: AVRational

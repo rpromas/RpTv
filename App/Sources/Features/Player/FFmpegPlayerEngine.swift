@@ -179,16 +179,20 @@ final class FFmpegPlayerEngine: PlayerEngine {
         }
     }
 
-    /// "French", or "English (Dolby Digital 5.1)" when another audio track is also in English.
+    /// "French", or "English (Dolby Digital 5.1)" when another audio track is also in English, or "German 2" for a
+    /// second German subtitle track.
     static func name(of track: PlayerTrack, number: Int, among tracks: [PlayerTrack]) -> String {
         func base(_ track: PlayerTrack, _ number: Int) -> String {
             // The captions inside the video have no title or language.
             if track.codec == "eia_608" { return "Closed Captions" }
-            return track.title ?? TrackLanguage.displayName(track.language) ?? "Track \(number)"
+            return track.title ?? TrackLanguage.displayName(track.language)
+                ?? (track.codec == "dvb_teletext" ? "Teletext" : "Track \(number)")
         }
         let name = base(track, number)
         let isAmbiguous = tracks.enumerated().contains { $0.element.id != track.id && base($0.element, $0.offset + 1) == name }
-        guard track.kind == .audio, isAmbiguous else { return name }
+        guard isAmbiguous else { return name }
+        // Two subtitle tracks in one language (often one for the hard of hearing): number them.
+        guard track.kind == .audio else { return "\(name) \(number)" }
         let channels = switch track.channels {
         case 1: "Mono"
         case 2: "Stereo"

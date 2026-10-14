@@ -1,0 +1,82 @@
+<!-- This Source Code Form is subject to the terms of the Mozilla Public
+   - License, v. 2.0. If a copy of the MPL was not distributed with this
+   - file, You can obtain one at https://mozilla.org/MPL/2.0/. -->
+<!-- App icon source: an old Šilelis portable TV with the Vilnius TV tower as its antenna.
+     Rendered to App/Assets.xcassets/AppIcon.appiconset/AppIcon.png (1024×1024, no alpha). -->
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+<defs>
+  <linearGradient id="bg" x1="0" y1="0" x2="0.4" y2="1">
+    <stop offset="0" stop-color="#11543C"/><stop offset="0.55" stop-color="#0A3326"/><stop offset="1" stop-color="#051A13"/>
+  </linearGradient>
+  <radialGradient id="halo" cx="512" cy="300" r="420" gradientUnits="userSpaceOnUse">
+    <stop offset="0" stop-color="#3FE08C" stop-opacity="0.30"/><stop offset="1" stop-color="#3FE08C" stop-opacity="0"/>
+  </radialGradient>
+  <linearGradient id="concrete" x1="0" y1="0" x2="1" y2="0">
+    <stop offset="0" stop-color="#C9C1AE"/><stop offset="0.45" stop-color="#F6F0E2"/><stop offset="1" stop-color="#A9A08C"/>
+  </linearGradient>
+  <linearGradient id="body" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#F7F0DE"/><stop offset="0.7" stop-color="#E4D9BE"/><stop offset="1" stop-color="#CBBD9C"/>
+  </linearGradient>
+  <radialGradient id="crt" cx="0.45" cy="0.42" r="0.68">
+    <stop offset="0" stop-color="#8CF8BE"/><stop offset="0.45" stop-color="#2BC774"/><stop offset="1" stop-color="#08502D"/>
+  </radialGradient>
+  <linearGradient id="windows" x1="0" y1="0" x2="1" y2="0">
+    <stop offset="0" stop-color="#1E9E5A"/><stop offset="0.45" stop-color="#7BF5B3"/><stop offset="1" stop-color="#178049"/>
+  </linearGradient>
+  <radialGradient id="knob" cx="0.38" cy="0.32" r="0.8">
+    <stop offset="0" stop-color="#FFFBF0"/><stop offset="1" stop-color="#BDAF90"/>
+  </radialGradient>
+  <radialGradient id="led" cx="0.5" cy="0.5" r="0.5">
+    <stop offset="0" stop-color="#B9FFD8"/><stop offset="0.4" stop-color="#3FE08C"/><stop offset="1" stop-color="#3FE08C" stop-opacity="0"/>
+  </radialGradient>
+</defs>
+<rect width="1024" height="1024" fill="url(#bg)"/>
+<rect width="1024" height="1024" fill="url(#halo)"/>
+<g transform="translate(0,20)">
+
+<!-- broadcast waves -->
+<path d="M548.2,89.7 A46,46 0 0 1 548.2,146.3" stroke="#46E592" stroke-width="13" stroke-linecap="round" fill="none" opacity="1.0"/><path d="M475.8,146.3 A46,46 0 0 1 475.8,89.7" stroke="#46E592" stroke-width="13" stroke-linecap="round" fill="none" opacity="1.0"/><path d="M573.5,70.0 A78,78 0 0 1 573.5,166.0" stroke="#46E592" stroke-width="13" stroke-linecap="round" fill="none" opacity="0.7"/><path d="M450.5,166.0 A78,78 0 0 1 450.5,70.0" stroke="#46E592" stroke-width="13" stroke-linecap="round" fill="none" opacity="0.7"/><path d="M598.7,50.3 A110,110 0 0 1 598.7,185.7" stroke="#46E592" stroke-width="13" stroke-linecap="round" fill="none" opacity="0.4"/><path d="M425.3,185.7 A110,110 0 0 1 425.3,50.3" stroke="#46E592" stroke-width="13" stroke-linecap="round" fill="none" opacity="0.4"/>
+
+<!-- Vilnius TV tower: steel mast -->
+<path d="M508,112 L516,112 L522,268 L502,268 Z" fill="url(#concrete)"/>
+<rect x="499" y="176" width="26" height="9" rx="4" fill="url(#concrete)"/>
+<rect x="496" y="222" width="32" height="10" rx="5" fill="url(#concrete)"/>
+<!-- concrete shaft with flared foot -->
+<path d="M494,262 L530,262 L540,470 C544,505 570,530 604,548 L420,548 C454,530 480,505 484,470 Z" fill="url(#concrete)"/>
+<rect x="484" y="262" width="56" height="13" rx="6" fill="url(#concrete)"/>
+<!-- observation pod -->
+<path d="M474,298 L550,298 L602,318 L422,318 Z" fill="url(#concrete)"/>
+<rect x="416" y="316" width="192" height="26" rx="6" fill="url(#windows)"/>
+<rect x="430" y="318" width="4" height="22" fill="#0B3B26" opacity="0.55"/><rect x="444" y="318" width="4" height="22" fill="#0B3B26" opacity="0.55"/><rect x="458" y="318" width="4" height="22" fill="#0B3B26" opacity="0.55"/><rect x="472" y="318" width="4" height="22" fill="#0B3B26" opacity="0.55"/><rect x="486" y="318" width="4" height="22" fill="#0B3B26" opacity="0.55"/><rect x="500" y="318" width="4" height="22" fill="#0B3B26" opacity="0.55"/><rect x="514" y="318" width="4" height="22" fill="#0B3B26" opacity="0.55"/><rect x="528" y="318" width="4" height="22" fill="#0B3B26" opacity="0.55"/><rect x="542" y="318" width="4" height="22" fill="#0B3B26" opacity="0.55"/><rect x="556" y="318" width="4" height="22" fill="#0B3B26" opacity="0.55"/><rect x="570" y="318" width="4" height="22" fill="#0B3B26" opacity="0.55"/><rect x="584" y="318" width="4" height="22" fill="#0B3B26" opacity="0.55"/>
+<path d="M422,340 L602,340 L552,362 L472,362 Z" fill="url(#concrete)"/>
+<rect x="490" y="386" width="44" height="10" rx="5" fill="url(#concrete)"/>
+<!-- tip light -->
+<circle cx="512" cy="112" r="26" fill="url(#led)"/>
+<circle cx="512" cy="112" r="8" fill="#D8FFE9"/>
+
+<!-- Šilelis portable TV -->
+<rect x="232" y="852" width="76" height="40" rx="12" fill="#2A2D2A"/>
+<rect x="716" y="852" width="76" height="40" rx="12" fill="#2A2D2A"/>
+<rect x="164" y="528" width="696" height="342" rx="58" fill="#B5A684"/>
+<rect x="164" y="528" width="696" height="330" rx="58" fill="url(#body)"/>
+<rect x="226" y="536" width="572" height="8" rx="4" fill="#FFFFFF" opacity="0.5"/>
+<!-- screen bezel + CRT -->
+<rect x="204" y="566" width="448" height="268" rx="46" fill="#262A27"/>
+<path d="M290,586 C380,580 476,580 566,586 C606,588 626,608 630,646 C635,700 635,722 630,770 C626,800 606,812 566,814 C476,820 380,820 290,814 C250,812 230,800 226,770 C221,722 221,700 226,646 C230,608 250,588 290,586 Z" fill="url(#crt)"/>
+<rect x="220" y="588" width="416" height="3" fill="#03301A" opacity="0.14"/><rect x="220" y="597" width="416" height="3" fill="#03301A" opacity="0.14"/><rect x="220" y="606" width="416" height="3" fill="#03301A" opacity="0.14"/><rect x="220" y="615" width="416" height="3" fill="#03301A" opacity="0.14"/><rect x="220" y="624" width="416" height="3" fill="#03301A" opacity="0.14"/><rect x="220" y="633" width="416" height="3" fill="#03301A" opacity="0.14"/><rect x="220" y="642" width="416" height="3" fill="#03301A" opacity="0.14"/><rect x="220" y="651" width="416" height="3" fill="#03301A" opacity="0.14"/><rect x="220" y="660" width="416" height="3" fill="#03301A" opacity="0.14"/><rect x="220" y="669" width="416" height="3" fill="#03301A" opacity="0.14"/><rect x="220" y="678" width="416" height="3" fill="#03301A" opacity="0.14"/><rect x="220" y="687" width="416" height="3" fill="#03301A" opacity="0.14"/><rect x="220" y="696" width="416" height="3" fill="#03301A" opacity="0.14"/><rect x="220" y="705" width="416" height="3" fill="#03301A" opacity="0.14"/><rect x="220" y="714" width="416" height="3" fill="#03301A" opacity="0.14"/><rect x="220" y="723" width="416" height="3" fill="#03301A" opacity="0.14"/><rect x="220" y="732" width="416" height="3" fill="#03301A" opacity="0.14"/><rect x="220" y="741" width="416" height="3" fill="#03301A" opacity="0.14"/><rect x="220" y="750" width="416" height="3" fill="#03301A" opacity="0.14"/><rect x="220" y="759" width="416" height="3" fill="#03301A" opacity="0.14"/><rect x="220" y="768" width="416" height="3" fill="#03301A" opacity="0.14"/><rect x="220" y="777" width="416" height="3" fill="#03301A" opacity="0.14"/><rect x="220" y="786" width="416" height="3" fill="#03301A" opacity="0.14"/><rect x="220" y="795" width="416" height="3" fill="#03301A" opacity="0.14"/><rect x="220" y="804" width="416" height="3" fill="#03301A" opacity="0.14"/>
+<path d="M250,640 C254,612 270,602 300,600 C360,597 420,596 470,598 C400,606 330,618 268,652 C258,658 248,654 250,640 Z" fill="#FFFFFF" opacity="0.28"/>
+<path d="M398,652 L398,748 C398,758 408,764 417,759 L500,712 C509,707 509,693 500,688 L417,641 C408,636 398,642 398,652 Z" fill="#EFFFF6" opacity="0.92"/>
+<!-- controls -->
+<circle cx="756" cy="628" r="44" fill="#262A27"/>
+<circle cx="756" cy="628" r="33" fill="url(#knob)"/>
+<rect x="752" y="597" width="8" height="26" rx="4" fill="#262A27"/>
+<circle cx="756" cy="728" r="34" fill="#262A27"/>
+<circle cx="756" cy="728" r="25" fill="url(#knob)"/>
+<rect x="752" y="705" width="8" height="20" rx="4" fill="#262A27" transform="rotate(50 756 728)"/>
+<rect x="694" y="784" width="124" height="9" rx="4.5" fill="#262A27" opacity="0.8"/>
+<rect x="694" y="802" width="124" height="9" rx="4.5" fill="#262A27" opacity="0.8"/>
+<rect x="694" y="820" width="124" height="9" rx="4.5" fill="#262A27" opacity="0.8"/>
+<circle cx="822" cy="568" r="16" fill="url(#led)"/>
+<circle cx="822" cy="568" r="6" fill="#D8FFE9"/>
+</g>
+</svg>

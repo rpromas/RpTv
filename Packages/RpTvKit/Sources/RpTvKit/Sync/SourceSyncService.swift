@@ -16,12 +16,19 @@ public enum SyncError: LocalizedError, Equatable {
     case missingPassword
     case invalidLocation
     case emptyPlaylist
+    case notAPlaylist(M3UForeignContent)
 
     public var errorDescription: String? {
         switch self {
         case .missingPassword: "The saved password for this account is missing. Edit the source and enter it again."
         case .invalidLocation: "The playlist address isn't valid."
         case .emptyPlaylist: "The playlist doesn't contain any channels, movies or series."
+        case .notAPlaylist(.guide):
+            "This is a TV guide (XMLTV), not a playlist. Enter the playlist's address here and the guide's in the EPG URL field."
+        case .notAPlaylist(.binary):
+            "This is a compressed file, not a playlist, most likely a TV guide (.xml.gz). Enter the playlist's address here and the guide's in the EPG URL field."
+        case .notAPlaylist(.webPage):
+            "The address returned a web page, not a playlist. Check the address, and that the account is still active."
         }
     }
 }
@@ -121,16 +128,18 @@ public struct SourceSyncService: Sendable {
         var parser = M3UParser()
         var builder = M3UCatalogBuilder()
 
-        func consume(_ line: String) {
+        func consume(_ line: String) throws {
             if let entry = parser.consume(line) {
                 builder.add(entry)
                 if builder.count.isMultiple(of: 1000) { progress(.downloading(itemCount: builder.count)) }
             }
+            // Stop before a guide or web page turns into thousands of channels and replaces the catalog.
+            if let foreign = parser.foreignContent { throw SyncError.notAPlaylist(foreign) }
         }
 
         if source.isLocalFile {
             for try await line in playlistDirectory.appending(component: source.location).lines {
-                consume(line)
+                try consume(line)
             }
         } else {
             guard let url = URL(string: source.location), url.scheme != nil else { throw SyncError.invalidLocation }
@@ -139,7 +148,7 @@ public struct SourceSyncService: Sendable {
                 throw HTTPError.status(http.statusCode)
             }
             for try await line in bytes.lines {
-                consume(line)
+                try consume(line)
             }
         }
 

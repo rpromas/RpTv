@@ -88,11 +88,36 @@ public struct M3UHeader: Sendable, Hashable {
     }
 }
 
+/// What a file given as a playlist turns out to be instead, judged by its first line. People paste their TV guide's
+/// address where the playlist's goes; read as a playlist, every line of the guide would become a channel.
+public enum M3UForeignContent: Sendable, Equatable {
+    /// XML, almost always an XMLTV guide.
+    case guide
+    /// An HTML page, such as a provider's error or login page.
+    case webPage
+    /// Binary data, almost always a gzipped guide (`.xml.gz`).
+    case binary
+
+    init?(firstLine line: String) {
+        if let first = line.unicodeScalars.first, first.properties.generalCategory == .control || first == "\u{FFFD}" {
+            self = .binary
+        } else if line.hasPrefix("<") {
+            let lowercased = line.lowercased()
+            self = lowercased.hasPrefix("<!doctype html") || lowercased.hasPrefix("<html") ? .webPage : .guide
+        } else {
+            return nil
+        }
+    }
+}
+
 /// Incremental M3U parser. Feed it lines one at a time so large playlists never sit in memory as one string.
 public struct M3UParser: Sendable {
     public private(set) var header = M3UHeader()
+    /// Set when the first line shows the file isn't a playlist. The parser then ignores the rest.
+    public private(set) var foreignContent: M3UForeignContent?
 
     private var isFirstLine = true
+    private var sawContent = false
     private var pendingInfo: (duration: Int?, attributes: [String: String], title: String)?
     private var pendingGroup: String?
     private var pendingUserAgent: String?
@@ -110,11 +135,17 @@ public struct M3UParser: Sendable {
             }
         }
         guard !line.isEmpty else { return nil }
+        if !sawContent {
+            sawContent = true
+            foreignContent = M3UForeignContent(firstLine: line)
+        }
+        guard foreignContent == nil else { return nil }
 
         if line.hasPrefix("#") {
             consumeDirective(line)
             return nil
         }
+        guard Self.startsWithScheme(line) else { return nil }
         return makeEntry(url: line)
     }
 
@@ -238,6 +269,14 @@ public struct M3UParser: Sendable {
             if !key.isEmpty { result[key] = String(value) }
         }
         return result
+    }
+
+    /// Whether a line starts like a stream URL (`scheme://`). Other lines aren't entries.
+    static func startsWithScheme(_ line: String) -> Bool {
+        guard let colon = line.firstIndex(of: ":"), line[colon...].hasPrefix("://") else { return false }
+        let scheme = line[..<colon]
+        return scheme.first?.isLetter == true
+            && scheme.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || "+-.".contains($0)) }
     }
 
     private static func fallbackName(for url: String) -> String {

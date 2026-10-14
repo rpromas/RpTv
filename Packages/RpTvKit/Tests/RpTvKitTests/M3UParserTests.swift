@@ -96,6 +96,43 @@ struct M3UParserTests {
         #expect(entries[4].attributes.isEmpty)
     }
 
+    @Test func ignoresLinesThatArentURLs() {
+        let (_, entries) = M3UParser.parse("""
+            #EXTM3U
+            #EXTINF:-1,Stray Text
+            not a url
+            /local/path.ts
+            #EXTINF:-1,Multicast
+            udp://@239.0.0.1:1234
+            """)
+        #expect(entries.map(\.name) == ["Multicast"])
+        #expect(entries.map(\.url) == ["udp://@239.0.0.1:1234"])
+    }
+
+    @Test(arguments: [
+        ("<?xml version=\"1.0\"?>\n<tv>\n<icon src=\"http://logo.example.com/a.png\"/>\n</tv>", M3UForeignContent.guide),
+        ("<tv generator-info-name=\"x\">\n</tv>", .guide),
+        ("\n<!DOCTYPE html>\n<html><a href=\"http://example.com/x\">x</a></html>", .webPage),
+        ("\u{1F}\u{FFFD}\u{8}\nhttp://stream.example.com/a.ts", .binary),
+    ])
+    func recognizesFilesThatArentPlaylists(text: String, expected: M3UForeignContent) {
+        var parser = M3UParser()
+        var entries: [M3UEntry] = []
+        text.enumerateLines { line, _ in
+            if let entry = parser.consume(line) { entries.append(entry) }
+        }
+        #expect(parser.foreignContent == expected)
+        #expect(entries.isEmpty)
+    }
+
+    @Test func playlistsArentForeign() throws {
+        var parser = M3UParser()
+        _ = parser.consume("\u{FEFF}#EXTM3U")
+        _ = parser.consume("#EXTINF:-1,A")
+        _ = parser.consume("http://stream.example.com/a.ts")
+        #expect(parser.foreignContent == nil)
+    }
+
     @Test func parsesLargePlaylistQuickly() {
         var text = "#EXTM3U\n"
         for index in 0..<50_000 {

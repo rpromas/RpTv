@@ -62,6 +62,17 @@ struct CatalogSyncTests {
         #expect(all.count == 4)
     }
 
+    @Test(arguments: [("epg/guide.xml", M3UForeignContent.guide), ("epg/guide.xml.gz", .binary)])
+    func refusesGuideGivenAsPlaylistAndKeepsCatalog(location: String, expected: M3UForeignContent) async throws {
+        var source = try await database.insertSource(Source(name: "Local", kind: .m3u, location: "sample.m3u", isLocalFile: true))
+        try await service.sync(source)
+
+        source.location = location
+        try await database.updateSource(source)
+        await #expect(throws: SyncError.notAPlaylist(expected)) { try await service.sync(source) }
+        #expect(try await database.channelCount(sourceID: source.id!) == 5)
+    }
+
     @Test func searchesChannelNames() async throws {
         let source = try await database.insertSource(Source(name: "Local", kind: .m3u, location: "sample.m3u", isLocalFile: true))
         try await service.sync(source)

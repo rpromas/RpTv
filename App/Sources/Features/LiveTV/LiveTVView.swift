@@ -31,9 +31,11 @@ struct LiveTVView: View {
                 Section("Categories") {
                     ForEach(categories) { summary in
                         NavigationLink(value: ChannelList.category(summary.category.id!)) {
-                            LabeledContent(summary.category.name) {
+                            LabeledContent {
                                 Text(summary.itemCount.formatted())
                                     .monospacedDigit()
+                            } label: {
+                                CategoryLabel(category: summary.category)
                             }
                         }
                     }
@@ -44,8 +46,12 @@ struct LiveTVView: View {
             .refreshable { await refreshActiveSource() }
         } detail: {
             if let source = model.activeSource, let sourceID = source.id, let selection {
-                ChannelListView(context: ChannelListContext(sourceID: sourceID, list: selection, title: title(for: selection)))
-                    .id(selection)
+                if isLocked(selection) {
+                    LockedContentView()
+                } else {
+                    ChannelListView(context: ChannelListContext(sourceID: sourceID, list: selection, title: title(for: selection)))
+                        .id(selection)
+                }
             } else {
                 ContentUnavailableView("Pick a Category", systemImage: "tv")
             }
@@ -64,12 +70,23 @@ struct LiveTVView: View {
             selection = .all
             preferredColumn = .sidebar
         }
+        .onChange(of: selection) { _, selection in
+            if let selection, isLocked(selection) {
+                Task { await model.unlockLockedContent() }
+            }
+        }
+    }
+
+    /// Whether `list` is a locked category that the PIN hasn't opened yet.
+    private func isLocked(_ list: ChannelList) -> Bool {
+        guard case .category(let id) = list, model.parental.isRestricted else { return false }
+        return categories.first { $0.category.id == id }?.category.isLocked ?? false
     }
 
     private func title(for selection: ChannelList) -> String {
         switch selection {
         case .all: "All Channels"
-        case .category(let id): categories.first { $0.category.id == id }?.category.name ?? "Channels"
+        case .category(let id): categories.first { $0.category.id == id }?.category.displayName ?? "Channels"
         case .favorites: "Favorites"
         case .recent: "Recent"
         }
@@ -91,6 +108,12 @@ struct SourceToolbar: ToolbarContent {
     @Environment(AppModel.self) private var model
 
     var body: some ToolbarContent {
+        if model.parental.hasPIN, model.parental.isUnlocked {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("Lock Categories", systemImage: "lock.open") { model.parental.lock() }
+                    .accessibilityIdentifier("relockButton")
+            }
+        }
         ToolbarItem(placement: .topBarTrailing) {
             if let id = model.activeSource?.id, model.syncPhases[id] != nil {
                 ProgressView()
@@ -147,10 +170,11 @@ struct ChannelListView: View {
                 emptyView
             }
         }
-        .task(id: QueryKey(context: context, search: search)) {
+        .task(id: QueryKey(context: context, search: search, includesLocked: model.includesLocked)) {
             do {
                 for try await channels in model.database.observeChannels(sourceID: context.sourceID, list: context.list,
-                                                                         search: isSearchable ? search : "") {
+                                                                         search: isSearchable ? search : "",
+                                                                         includingLocked: model.includesLocked) {
                     self.channels = channels
                     hasLoaded = true
                 }
@@ -195,12 +219,31 @@ struct ChannelListView: View {
     private struct QueryKey: Equatable {
         var context: ChannelListContext
         var search: String
+        var includesLocked: Bool
     }
 
     private func move(from offsets: IndexSet, to destination: Int) {
         channels.move(fromOffsets: offsets, toOffset: destination)
         let reordered = channels
         Task { await model.reorderFavorites(reordered, sourceID: context.sourceID) }
+    }
+}
+
+/// A category's name, with a padlock while it's locked.
+struct CategoryLabel: View {
+    let category: MediaCategory
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Text(category.displayName)
+            if category.isLocked, model.parental.isRestricted {
+                Image(systemName: "lock.fill")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .accessibilityLabel("Locked")
+            }
+        }
     }
 }
 

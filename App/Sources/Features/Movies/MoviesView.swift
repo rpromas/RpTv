@@ -25,10 +25,16 @@ struct MoviesView: View {
         NavigationStack {
             Group {
                 if let sourceID = model.activeSource?.id {
-                    MovieGrid(sourceID: sourceID, list: list, search: search, sort: sort)
-                        .safeAreaBar(edge: .top) {
-                            CategoryChips(categories: categories, selection: $list)
+                    Group {
+                        if isLocked(list) {
+                            LockedContentView()
+                        } else {
+                            MovieGrid(sourceID: sourceID, list: list, search: search, sort: sort)
                         }
+                    }
+                    .safeAreaBar(edge: .top) {
+                        CategoryChips(categories: categories, selection: $list)
+                    }
                 } else {
                     ContentUnavailableView("No Source", systemImage: "film")
                 }
@@ -68,6 +74,15 @@ struct MoviesView: View {
             }
         }
         .onChange(of: model.activeSource?.id) { list = .all }
+        .onChange(of: list) { _, list in
+            if isLocked(list) { Task { await model.unlockLockedContent() } }
+        }
+    }
+
+    /// Whether `list` is a locked category that the PIN hasn't opened yet.
+    private func isLocked(_ list: MovieList) -> Bool {
+        guard case .category(let id) = list, model.parental.isRestricted else { return false }
+        return categories.first { $0.category.id == id }?.category.isLocked ?? false
     }
 }
 
@@ -75,6 +90,7 @@ struct MoviesView: View {
 private struct CategoryChips: View {
     let categories: [CategorySummary]
     @Binding var selection: MovieList
+    @Environment(AppModel.self) private var model
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -86,7 +102,8 @@ private struct CategoryChips: View {
                     chip("Recent", list: .recent)
                         .accessibilityIdentifier("movieRecentChip")
                     ForEach(categories) { summary in
-                        chip(summary.category.name, list: .category(summary.category.id!))
+                        chip(summary.category.displayName, list: .category(summary.category.id!),
+                             isLocked: summary.category.isLocked && model.parental.isRestricted)
                     }
                 }
                 .padding(.horizontal)
@@ -101,8 +118,14 @@ private struct CategoryChips: View {
         }
     }
 
-    @ViewBuilder private func chip(_ title: String, list: MovieList) -> some View {
-        let button = Button(title) { selection = list }
+    @ViewBuilder private func chip(_ title: String, list: MovieList, isLocked: Bool = false) -> some View {
+        let button = Button { selection = list } label: {
+            if isLocked {
+                Label(title, systemImage: "lock.fill")
+            } else {
+                Text(title)
+            }
+        }
             .controlSize(.small)
             .accessibilityAddTraits(selection == list ? .isSelected : [])
             .id(list)
@@ -160,7 +183,7 @@ private struct MovieGrid: View {
                 }
             }
         }
-        .task(id: QueryKey(sourceID: sourceID, list: list, search: search, sort: sort)) {
+        .task(id: QueryKey(sourceID: sourceID, list: list, search: search, sort: sort, includesLocked: model.includesLocked)) {
             do {
                 for try await movies in observeMovies() {
                     self.movies = movies
@@ -177,14 +200,17 @@ private struct MovieGrid: View {
     private func observeMovies() -> any AsyncSequence<[MovieSummary], any Error> {
         let database = model.database
         let search = search
+        let includesLocked = model.includesLocked
         let filter: @Sendable ([MovieSummary]) -> [MovieSummary] = { movies in
             search.isEmpty ? movies : movies.filter { $0.name.localizedStandardContains(search) }
         }
         switch list {
-        case .all: return database.observeMovies(sourceID: sourceID, categoryID: nil, search: search, sort: sort)
-        case .category(let id): return database.observeMovies(sourceID: sourceID, categoryID: id, search: search, sort: sort)
-        case .favorites: return database.observeFavoriteMovies(sourceID: sourceID).map(filter)
-        case .recent: return database.observeRecentMovies(sourceID: sourceID).map(filter)
+        case .all:
+            return database.observeMovies(sourceID: sourceID, categoryID: nil, search: search, sort: sort, includingLocked: includesLocked)
+        case .category(let id):
+            return database.observeMovies(sourceID: sourceID, categoryID: id, search: search, sort: sort, includingLocked: includesLocked)
+        case .favorites: return database.observeFavoriteMovies(sourceID: sourceID, includingLocked: includesLocked).map(filter)
+        case .recent: return database.observeRecentMovies(sourceID: sourceID, includingLocked: includesLocked).map(filter)
         }
     }
 
@@ -202,6 +228,7 @@ private struct MovieGrid: View {
         var list: MovieList
         var search: String
         var sort: MovieSort
+        var includesLocked: Bool
     }
 }
 

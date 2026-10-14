@@ -16,7 +16,7 @@ public enum EPGSyncError: LocalizedError, Equatable {
 
 /// Downloads a source's XMLTV guide and stores it. Runs on its own, apart from the catalog sync.
 public struct EPGSyncService: Sendable {
-    /// A guide older than this is refreshed on launch and on pull-to-refresh.
+    /// By default, a guide older than this is refreshed on launch and on pull-to-refresh.
     public static let staleInterval: TimeInterval = 12 * 3600
 
     private let database: AppDatabase
@@ -34,9 +34,9 @@ public struct EPGSyncService: Sendable {
         source.kind == .xtream || source.epgURL?.isEmpty == false
     }
 
-    public static func isStale(_ source: Source, now: Date = .now) -> Bool {
+    public static func isStale(_ source: Source, now: Date = .now, interval: TimeInterval = staleInterval) -> Bool {
         guard let last = source.lastEPGSyncAt else { return true }
-        return now.timeIntervalSince(last) >= staleInterval
+        return now.timeIntervalSince(last) >= interval
     }
 
     /// The guide URL. For Xtream it is built from the keychain password here, and never stored.

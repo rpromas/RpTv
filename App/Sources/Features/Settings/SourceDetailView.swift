@@ -5,10 +5,11 @@
 import RpTvKit
 import SwiftUI
 
-/// Details and per-source options of one source.
+/// Details of one source: its account, its categories and its TV guide. Changes go through ``EditSourceView``.
 struct SourceDetailView: View {
     let sourceID: Int64
     @Environment(AppModel.self) private var model
+    @State private var isEditing = false
 
     var body: some View {
         // Read from the model so the screen reflects saved changes and syncs.
@@ -25,32 +26,92 @@ struct SourceDetailView: View {
                     if let username = source.username {
                         LabeledContent("Username", value: username)
                     }
+                    LabeledContent("Player", value: source.enginePreference == .automatic
+                                   ? "Default (\(model.settings.defaultEngine.title))" : source.enginePreference.title)
+                }
+
+                if source.kind == .xtream {
+                    AccountSection(source: source)
+                }
+
+                Section {
+                    NavigationLink("Live TV Categories") {
+                        CategoryManagerView(sourceID: sourceID, kind: .live)
+                    }
+                    NavigationLink("Movie Categories") {
+                        CategoryManagerView(sourceID: sourceID, kind: .movie)
+                    }
+                } header: {
+                    Text("Categories")
+                } footer: {
+                    Text("Hide, rename, reorder or lock categories.")
                 }
 
                 GuideSection(source: source)
-
-                Section {
-                    Picker("Player Engine", selection: enginePreference(of: source)) {
-                        ForEach(EnginePreference.allCases, id: \.self) { preference in
-                            Text(preference.title).tag(preference)
-                        }
-                    }
-                } footer: {
-                    Text(source.enginePreference.explanation)
-                }
             }
             .navigationTitle(source.name)
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    Button("Edit") { isEditing = true }
+                        .accessibilityIdentifier("editSourceButton")
+                }
+            }
+            .sheet(isPresented: $isEditing) {
+                EditSourceView(source: source)
+            }
         } else {
             ContentUnavailableView("Source Removed", systemImage: "trash")
         }
     }
+}
 
-    private func enginePreference(of source: Source) -> Binding<EnginePreference> {
-        Binding {
-            source.enginePreference
-        } set: { preference in
-            Task { await model.setEnginePreference(preference, for: source) }
+/// The Xtream account as the server reports it: status, expiry, connections and trial.
+private struct AccountSection: View {
+    let source: Source
+    @Environment(AppModel.self) private var model
+    @State private var account: XtreamAccount?
+    @State private var error: String?
+
+    var body: some View {
+        Section {
+            if let user = account?.user {
+                LabeledContent("Status", value: user.status ?? "Unknown")
+                LabeledContent("Expires") {
+                    if let expiresAt = user.expiresAt {
+                        Text(expiresAt, format: .dateTime.day().month().year())
+                            .foregroundStyle(source.daysUntilExpiry() != nil ? AnyShapeStyle(.orange) : AnyShapeStyle(.secondary))
+                    } else {
+                        Text("Never")
+                    }
+                }
+                if let max = user.maxConnections {
+                    LabeledContent("Connections", value: "\(user.activeConnections ?? 0) of \(max)")
+                }
+                LabeledContent("Trial", value: user.isTrial ? "Yes" : "No")
+            } else if let error {
+                Label(error, systemImage: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+            } else {
+                HStack {
+                    Text("Checking…")
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    ProgressView()
+                }
+            }
+        } header: {
+            Text("Account")
+        }
+        .task(id: [source.location, source.username ?? "", source.credentialKey ?? ""]) {
+            error = nil
+            do {
+                account = try await model.accountStatus(of: source)
+            } catch is CancellationError {
+            } catch {
+                account = nil
+                self.error = error.localizedDescription
+            }
         }
     }
 }
@@ -59,26 +120,13 @@ struct SourceDetailView: View {
 private struct GuideSection: View {
     let source: Source
     @Environment(AppModel.self) private var model
-    @State private var draft = ""
-    @FocusState private var isEditing: Bool
 
     private var isSyncing: Bool { source.id.map(model.guideSyncing.contains) ?? false }
 
     var body: some View {
         Section {
-            TextField("Guide URL", text: $draft,
-                      prompt: Text(source.kind == .xtream ? "Provided by the server" : "XMLTV URL").foregroundStyle(.secondary))
-                .keyboardType(.URL)
-                .textContentType(.URL)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-                .submitLabel(.done)
-                .focused($isEditing)
-                .onSubmit(save)
-                .onChange(of: isEditing) { _, editing in
-                    if !editing { save() }
-                }
-                .accessibilityLabel("Guide URL")
+            LabeledContent("Guide", value: source.epgURL.flatMap { URL(string: $0)?.host() }
+                           ?? (source.kind == .xtream ? "From the provider" : "None"))
             LabeledContent("Last Updated") {
                 status
             }
@@ -96,10 +144,9 @@ private struct GuideSection: View {
             Text("TV Guide")
         } footer: {
             Text(source.kind == .xtream
-                 ? "Leave empty to use your provider's guide. Programmes are matched to channels by guide ID, then by name, and refresh every 12 hours."
-                 : "An XMLTV file, optionally gzipped. Programmes are matched to channels by tvg-id, then by name, and refresh every 12 hours.")
+                 ? "Programmes are matched to channels by guide ID, then by name. Set a guide URL with Edit."
+                 : "Programmes are matched to channels by tvg-id, then by name. Set a guide URL with Edit.")
         }
-        .task(id: source.epgURL) { draft = source.epgURL ?? "" }
     }
 
     @ViewBuilder private var status: some View {
@@ -113,31 +160,6 @@ private struct GuideSection: View {
             Text(date, format: .relative(presentation: .named))
         } else {
             Text("Never")
-        }
-    }
-
-    private func save() {
-        Task { await model.setEPGURL(draft, for: source) }
-    }
-}
-
-private extension EnginePreference {
-    var title: String {
-        switch self {
-        case .automatic: "Automatic"
-        case .native: "Native"
-        case .vlc: "VLC"
-        }
-    }
-
-    var explanation: String {
-        switch self {
-        case .automatic:
-            "Picks a player for each stream, and switches to VLC when the native player can't play it."
-        case .native:
-            "Always uses the native player, which supports Picture in Picture and AirPlay but not every stream format."
-        case .vlc:
-            "Always uses VLC, which plays almost any stream format but doesn't support Picture in Picture or AirPlay yet."
         }
     }
 }

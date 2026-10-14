@@ -6,6 +6,7 @@ import SwiftUI
 
 struct RootView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         @Bindable var model = model
@@ -36,6 +37,14 @@ struct RootView: View {
         .sheet(isPresented: $model.isAddingSource) {
             AddSourceView()
         }
+        .sheet(item: $model.pinRequest) { request in
+            PINUnlockView(request: request)
+        }
+        // Locked categories close again whenever the app leaves the screen.
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .background { model.parental.lock() }
+        }
+        .preferredColorScheme(model.settings.appearance.colorScheme)
         .fullScreenCover(item: $model.playerSession) { session in
             // Pass the model explicitly: the cover's content doesn't reliably inherit it, and the player's
             // favorite button and channel list read it.

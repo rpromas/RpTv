@@ -84,6 +84,7 @@ targets:
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: true
         NSLocalNetworkUsageDescription: RpTv connects to IPTV servers on your local network when you add one.
+        NSFaceIDUsageDescription: RpTv uses Face ID to open categories locked by parental controls.
 
   RpTvUITests:
     type: bundle.ui-testing

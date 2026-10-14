@@ -38,6 +38,8 @@ public struct Source: Codable, Sendable, Hashable, Identifiable {
     public var lastSyncError: String?
     public var lastEPGSyncAt: Date?
     public var lastEPGSyncError: String?
+    /// When the Xtream account runs out, refreshed on every sync. `nil` for M3U and for accounts that don't expire.
+    public var accountExpiresAt: Date?
 
     public init(
         id: Int64? = nil,
@@ -57,7 +59,8 @@ public struct Source: Codable, Sendable, Hashable, Identifiable {
         lastSyncedAt: Date? = nil,
         lastSyncError: String? = nil,
         lastEPGSyncAt: Date? = nil,
-        lastEPGSyncError: String? = nil
+        lastEPGSyncError: String? = nil,
+        accountExpiresAt: Date? = nil
     ) {
         self.id = id
         self.name = name
@@ -77,6 +80,16 @@ public struct Source: Codable, Sendable, Hashable, Identifiable {
         self.lastSyncError = lastSyncError
         self.lastEPGSyncAt = lastEPGSyncAt
         self.lastEPGSyncError = lastEPGSyncError
+        self.accountExpiresAt = accountExpiresAt
+    }
+
+    /// How many days are left on the account when it has run out or runs out within `warningDays`, else `nil`.
+    /// Zero or less means it has already expired.
+    public func daysUntilExpiry(now: Date = .now, warningDays: Int = 7, calendar: Calendar = .current) -> Int? {
+        guard let accountExpiresAt else { return nil }
+        let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: now),
+                                           to: calendar.startOfDay(for: accountExpiresAt)).day ?? 0
+        return days <= warningDays ? days : nil
     }
 
     /// HTTP headers every request for this source should carry.

@@ -106,6 +106,15 @@ struct XtreamClientTests {
         }
     }
 
+    @Test func describesExpiredAccount() async throws {
+        let account = try await client(StubXtreamServer(overrides: ["auth": "auth_expired"])).accountInfo()
+        #expect(account.user.status == "Expired")
+        #expect(!account.user.isActive)
+        await #expect(throws: XtreamError.unauthorized) {
+            try await client(StubXtreamServer(overrides: ["auth": "auth_failed"])).accountInfo()
+        }
+    }
+
     @Test func decodesCategoriesSkippingBrokenEntries() async throws {
         let categories = try await client().liveCategories()
         #expect(categories.map(\.id) == ["1", "2"])

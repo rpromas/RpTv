@@ -7,6 +7,7 @@ import GRDB
 
 // Favorites and recently watched items. Both point at items by `ItemKey`, so they outlive the rows a sync
 // replaces. One whose item has left the catalog stays stored, and shows up again if a later sync brings it back.
+// Items in locked categories are left out of the lists unless the caller says locked content is open.
 
 // MARK: - Writes
 
@@ -74,23 +75,31 @@ extension AppDatabase {
 
     /// A source's favorite channels, in the user's order. Favorites whose channel the catalog doesn't
     /// have right now are left out.
-    public func observeFavoriteChannels(sourceID: Int64) -> AsyncThrowingStream<[Channel], Error> {
-        observe { db in try Channel.fetchAll(db, Self.libraryItems(.favorites, kind: .channel, sourceID: sourceID)) }
+    public func observeFavoriteChannels(sourceID: Int64, includingLocked: Bool = false) -> AsyncThrowingStream<[Channel], Error> {
+        observe { db in
+            try Channel.fetchAll(db, Self.libraryItems(.favorites, kind: .channel, sourceID: sourceID, includingLocked: includingLocked))
+        }
     }
 
     /// A source's recently played channels, the latest first.
-    public func observeRecentChannels(sourceID: Int64) -> AsyncThrowingStream<[Channel], Error> {
-        observe { db in try Channel.fetchAll(db, Self.libraryItems(.recent, kind: .channel, sourceID: sourceID)) }
+    public func observeRecentChannels(sourceID: Int64, includingLocked: Bool = false) -> AsyncThrowingStream<[Channel], Error> {
+        observe { db in
+            try Channel.fetchAll(db, Self.libraryItems(.recent, kind: .channel, sourceID: sourceID, includingLocked: includingLocked))
+        }
     }
 
     /// A source's favorite movies, in the user's order, for a poster grid.
-    public func observeFavoriteMovies(sourceID: Int64) -> AsyncThrowingStream<[MovieSummary], Error> {
-        observe { db in try MovieSummary.fetchAll(db, Self.libraryItems(.favorites, kind: .movie, sourceID: sourceID)) }
+    public func observeFavoriteMovies(sourceID: Int64, includingLocked: Bool = false) -> AsyncThrowingStream<[MovieSummary], Error> {
+        observe { db in
+            try MovieSummary.fetchAll(db, Self.libraryItems(.favorites, kind: .movie, sourceID: sourceID, includingLocked: includingLocked))
+        }
     }
 
     /// A source's recently played movies, the latest first, for a poster grid.
-    public func observeRecentMovies(sourceID: Int64) -> AsyncThrowingStream<[MovieSummary], Error> {
-        observe { db in try MovieSummary.fetchAll(db, Self.libraryItems(.recent, kind: .movie, sourceID: sourceID)) }
+    public func observeRecentMovies(sourceID: Int64, includingLocked: Bool = false) -> AsyncThrowingStream<[MovieSummary], Error> {
+        observe { db in
+            try MovieSummary.fetchAll(db, Self.libraryItems(.recent, kind: .movie, sourceID: sourceID, includingLocked: includingLocked))
+        }
     }
 
     private enum Library {
@@ -100,7 +109,7 @@ extension AppDatabase {
 
     /// The rows a source's favorites or recents of one kind point at, in list order. When a catalog lists
     /// a stableKey twice, the first row stands for it.
-    private static func libraryItems(_ library: Library, kind: ItemKind, sourceID: Int64) -> SQLRequest<Row> {
+    private static func libraryItems(_ library: Library, kind: ItemKind, sourceID: Int64, includingLocked: Bool) -> SQLRequest<Row> {
         let (list, order) = switch library {
         case .favorites: ("favorite", "favorite.sortIndex")
         case .recent: ("recentItem", "recentItem.playedAt DESC")
@@ -112,19 +121,26 @@ extension AppDatabase {
             SELECT \(columns) FROM \(list)
             JOIN \(table) ON \(table).id = (
                 SELECT MIN(id) FROM \(table) WHERE sourceID = \(list).sourceID AND stableKey = \(list).stableKey)
-            WHERE \(list).sourceID = ? AND \(list).kind = ?
+            WHERE \(list).sourceID = ? AND \(list).kind = ?\(includingLocked ? "" : " AND \(unlocked(table))")
             ORDER BY \(order)
             """, arguments: [sourceID, kind])
     }
 
-    /// The channel played last, of any source, or nil when it has left the catalog.
-    public func lastPlayedChannel() async throws -> Channel? {
+    /// SQL that is true for rows of `table` outside locked categories.
+    static func unlocked(_ table: String) -> String {
+        "(\(table).categoryID IS NULL OR \(table).categoryID NOT IN (SELECT id FROM mediaCategory WHERE isLocked))"
+    }
+
+    /// The channel played last, of any source, or nil when it has left the catalog (or, unless `includingLocked`,
+    /// is in a locked category).
+    public func lastPlayedChannel(includingLocked: Bool = false) async throws -> Channel? {
         try await reader.read { db in
             try Channel.fetchOne(db, sql: """
                 SELECT channel.* FROM (
                     SELECT * FROM recentItem WHERE kind = ? ORDER BY playedAt DESC LIMIT 1) AS last
                 JOIN channel ON channel.id = (
                     SELECT MIN(id) FROM channel WHERE sourceID = last.sourceID AND stableKey = last.stableKey)
+                \(includingLocked ? "" : "WHERE \(Self.unlocked("channel"))")
                 """, arguments: [ItemKind.channel])
         }
     }

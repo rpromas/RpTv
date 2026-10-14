@@ -13,6 +13,10 @@ A free, open-source IPTV player for iPhone and iPad, built with SwiftUI for iOS 
 - **Search:** one search across all sources for channels, movies and guide programmes, matching word prefixes and ignoring accents ("cafe" finds "Café").
 - **TV guide:** XMLTV guides (from the playlist, the Xtream account, or a URL you set), now/next on every channel, and a guide grid with programme details and reminders.
 - **Catch-up:** watch past programmes from the provider's archive: Xtream timeshift, and M3U `catchup` modes (`default`, `append`, `shift`, `flussonic`).
+- **Categories:** hide, rename and drag categories into your own order, per source. Your changes survive refreshes.
+- **Parental controls:** a 4-digit PIN, with optional Face ID or Touch ID, locks the categories you pick. Their channels and movies stay out of lists, search, favorites and recents until the PIN is entered, and lock again when the app goes to the background.
+- **Sources:** edit a source's address, login, guide, headers and player at any time. Xtream accounts show their status, expiry date and connections, with a warning a week before they expire. Export your sources to a JSON file (without passwords) and import them on another device.
+- **Settings:** a default player, the live buffer, preferred audio and subtitle languages, how often catalogs and guides refresh, light or dark appearance, and clearing the image cache or guide data.
 - **Playback:** the native AVPlayer engine with Picture in Picture, AirPlay and background audio, and VLC for raw MPEG-TS, MKV, RTMP and other formats AVPlayer can't play. RpTv picks the engine per stream and switches to VLC automatically when the native player fails. You can also force one engine per source.
 - **Privacy:** no analytics and no accounts. Xtream passwords are stored in the iOS keychain, never in the database.
 
@@ -26,7 +30,9 @@ A free, open-source IPTV player for iPhone and iPad, built with SwiftUI for iOS 
 - [ ] Phase 4: movies and series.
   - [x] Movies (VOD).
   - [ ] Series and Continue Watching.
-- [ ] Phase 5: favorites, global search, category management, parental controls.
+- [x] Phase 5: library and settings.
+  - [x] Favorites, recently watched and global search.
+  - [x] Category management, parental controls, settings, account status, source export and import.
 
 ## Building
 
@@ -55,7 +61,7 @@ swift test --package-path Packages/FFmpeg
 # The AirPlay bridge (FFmpeg pipeline on synthetic test streams, HLS server):
 swift test --package-path Packages/StreamBridge
 
-# Everything on the simulator, including the end-to-end UI test:
+# Everything on the simulator, including the end-to-end UI tests:
 python3 -m http.server 8765 --directory Support &
 TEST_RUNNER_RPTV_PLAYLIST_URL=http://localhost:8765/demo-playlist.m3u \
   xcodebuild -project RpTv.xcodeproj -scheme RpTv \

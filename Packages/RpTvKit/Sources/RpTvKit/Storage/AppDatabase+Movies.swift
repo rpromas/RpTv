@@ -23,26 +23,35 @@ extension AppDatabase {
 // MARK: - Reads
 
 extension AppDatabase {
-    /// Visible movie categories of a source, each with its movie count. Empty categories are skipped.
+    /// Visible movie categories of a source, in the user's order, each with its movie count. Empty categories are
+    /// skipped. Locked ones are listed, so the user can unlock them.
     public func observeMovieCategories(sourceID: Int64) -> AsyncThrowingStream<[CategorySummary], Error> {
         observeCategories(sourceID: sourceID, kind: .movie, itemTable: Movie.databaseTableName)
     }
 
     /// Movies of a source for a poster grid, optionally narrowed to one category and to names with words starting
     /// with each word of `search` (ignoring case and diacritics).
-    /// Movies in hidden categories are left out unless a category is picked explicitly.
-    public func observeMovies(sourceID: Int64, categoryID: Int64?, search: String = "",
-                              sort: MovieSort = .added) -> AsyncThrowingStream<[MovieSummary], Error> {
-        observe { db in try Self.movieRequest(sourceID: sourceID, categoryID: categoryID, search: search, sort: sort).fetchAll(db) }
+    /// Movies in hidden categories are left out unless a category is picked explicitly, and movies in locked
+    /// categories unless `includingLocked`.
+    public func observeMovies(sourceID: Int64, categoryID: Int64?, search: String = "", sort: MovieSort = .added,
+                              includingLocked: Bool = false) -> AsyncThrowingStream<[MovieSummary], Error> {
+        observe { db in
+            try Self.movieRequest(sourceID: sourceID, categoryID: categoryID, search: search, sort: sort,
+                                  includingLocked: includingLocked).fetchAll(db)
+        }
     }
 
-    static func movieRequest(sourceID: Int64, categoryID: Int64?, search: String, sort: MovieSort) -> QueryInterfaceRequest<MovieSummary> {
+    static func movieRequest(sourceID: Int64, categoryID: Int64?, search: String, sort: MovieSort,
+                             includingLocked: Bool = false) -> QueryInterfaceRequest<MovieSummary> {
         var request = Movie.filter(Column("sourceID") == sourceID)
         if let categoryID {
             request = request.filter(Column("categoryID") == categoryID)
         } else {
             let hidden = MediaCategory.filter(Column("isHidden") == true).select(Column("id"))
             request = request.filter(Column("categoryID") == nil || !hidden.contains(Column("categoryID")))
+        }
+        if !includingLocked {
+            request = request.filter(Column("categoryID") == nil || !lockedCategoryIDs.contains(Column("categoryID")))
         }
         if !search.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             // Text with no words in it, like "%", matches nothing.

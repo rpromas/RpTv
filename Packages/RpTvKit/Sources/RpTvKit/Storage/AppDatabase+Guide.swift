@@ -91,6 +91,18 @@ extension AppDatabase {
         }
     }
 
+    /// Deletes the TV guide of every source. Each one counts as never downloaded, so it's fetched again on the
+    /// next refresh.
+    public func clearGuides() async throws {
+        try await writer.write { db in
+            try Programme.deleteAll(db)
+            try GuideChannel.deleteAll(db)
+            try db.execute(sql: "UPDATE channel SET guideID = NULL WHERE guideID IS NOT NULL")
+            try db.execute(sql: "UPDATE source SET lastEPGSyncAt = NULL, lastEPGSyncError = NULL")
+            try Self.rebuildSearchIndex(db, Self.programmeSearchTable)
+        }
+    }
+
     public func recordEPGSync(sourceID: Int64, error: String?, at date: Date = .now) async throws {
         try await writer.write { db in
             guard var source = try Source.fetchOne(db, key: sourceID) else { return }

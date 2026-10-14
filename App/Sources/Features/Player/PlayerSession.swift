@@ -22,13 +22,15 @@ struct ChannelListContext: Hashable {
 }
 
 extension AppDatabase {
-    /// The channels of `list`, kept up to date. `search` narrows All Channels and categories.
-    func observeChannels(sourceID: Int64, list: ChannelList, search: String = "") -> AsyncThrowingStream<[Channel], Error> {
+    /// The channels of `list`, kept up to date. `search` narrows All Channels and categories. Channels in locked
+    /// categories are left out unless `includingLocked`.
+    func observeChannels(sourceID: Int64, list: ChannelList, search: String = "",
+                         includingLocked: Bool) -> AsyncThrowingStream<[Channel], Error> {
         switch list {
-        case .all: observeChannels(sourceID: sourceID, categoryID: nil, search: search)
-        case .category(let id): observeChannels(sourceID: sourceID, categoryID: id, search: search)
-        case .favorites: observeFavoriteChannels(sourceID: sourceID)
-        case .recent: observeRecentChannels(sourceID: sourceID)
+        case .all: observeChannels(sourceID: sourceID, categoryID: nil, search: search, includingLocked: includingLocked)
+        case .category(let id): observeChannels(sourceID: sourceID, categoryID: id, search: search, includingLocked: includingLocked)
+        case .favorites: observeFavoriteChannels(sourceID: sourceID, includingLocked: includingLocked)
+        case .recent: observeRecentChannels(sourceID: sourceID, includingLocked: includingLocked)
         }
     }
 }
@@ -54,6 +56,8 @@ final class PlayerSession: Identifiable {
     @ObservationIgnored let database: AppDatabase
     @ObservationIgnored private let resolver: PlaybackResolver
     @ObservationIgnored private let firstItem: PlaybackItem
+    /// Whether locked categories were open when the player opened, so zapping can reach their channels.
+    @ObservationIgnored private let includesLocked: Bool
     @ObservationIgnored private var recordTask: Task<Void, Never>?
 
     /// How long something has to play before it counts as watched, so zapping past channels doesn't fill
@@ -61,7 +65,7 @@ final class PlayerSession: Identifiable {
     private static let watchedAfter = Duration.seconds(5)
 
     init(channel: Channel, source: Source, context: ChannelListContext?, catchup: Programme? = nil,
-         database: AppDatabase, resolver: PlaybackResolver) throws {
+         includesLocked: Bool, database: AppDatabase, resolver: PlaybackResolver) throws {
         self.firstItem = try catchup.map { try resolver.catchupItem(for: channel, programme: $0, in: source) }
             ?? resolver.item(for: channel, in: source)
         self.channel = channel
@@ -69,6 +73,7 @@ final class PlayerSession: Identifiable {
         self.catchupProgramme = catchup
         self.source = source
         self.context = context
+        self.includesLocked = includesLocked
         self.database = database
         self.resolver = resolver
         self.zapList = ZapList(channels: [channel], currentKey: channel.stableKey)
@@ -82,6 +87,7 @@ final class PlayerSession: Identifiable {
         self.movie = movie
         self.source = source
         self.context = nil
+        self.includesLocked = false
         self.database = database
         self.resolver = resolver
         self.zapList = ZapList(channels: [], currentKey: movie.stableKey)
@@ -152,7 +158,8 @@ final class PlayerSession: Identifiable {
     func observeChannels() async {
         guard let context else { return }
         do {
-            for try await channels in database.observeChannels(sourceID: context.sourceID, list: context.list) {
+            for try await channels in database.observeChannels(sourceID: context.sourceID, list: context.list,
+                                                               includingLocked: includesLocked) {
                 zapList.replaceChannels(channels)
                 // Watching reorders the recent list. Zap through it as it was when the player opened.
                 if context.list == .recent { break }

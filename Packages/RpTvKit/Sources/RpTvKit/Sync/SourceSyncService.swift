@@ -82,6 +82,18 @@ public struct SourceSyncService: Sendable {
         try await database.saveMovieDetails(sourceID: movie.sourceID, stableKey: movie.stableKey, details: info, fetchedAt: now)
     }
 
+    /// The Xtream account's status from the server, even when it has expired or been disabled. Also stores its
+    /// expiry date on the source.
+    public func accountStatus(of source: Source) async throws -> XtreamAccount {
+        let client = XtreamClient(credentials: try xtreamCredentials(for: source), http: http, headers: source.httpHeaders)
+        let account = try await client.accountInfo()
+        if let id = source.id {
+            let expiresAt = account.user.expiresAt
+            try await database.modifySource(id: id) { $0.accountExpiresAt = expiresAt }
+        }
+        return account
+    }
+
     public func xtreamCredentials(for source: Source) throws -> XtreamCredentials {
         try Self.xtreamCredentials(for: source, in: credentials)
     }
@@ -140,12 +152,14 @@ public struct SourceSyncService: Sendable {
 
         let formats = account.user.allowedOutputFormats
         let timeZone = account.server?.timezone
+        let expiresAt = account.user.expiresAt
         try await database.modifySource(id: source.id!) { updated in
             if updated.liveFormat == nil {
                 updated.liveFormat = formats.isEmpty || formats.contains("m3u8") ? "m3u8" : "ts"
             }
             // Catch-up URLs need it, and a server can move zones, so it's refreshed every time.
             updated.serverTimeZone = timeZone
+            updated.accountExpiresAt = expiresAt
         }
 
         async let categories = client.liveCategories()

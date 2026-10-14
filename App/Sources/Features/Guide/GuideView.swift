@@ -21,8 +21,8 @@ struct GuideView: View {
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar { SourceToolbar() }
                 .safeAreaInset(edge: .top, spacing: 0) {
-                    if categories.count > 1 {
-                        CategoryChips(categories: categories, selection: $categoryID)
+                    if visibleCategories.count > 1 {
+                        CategoryChips(categories: visibleCategories, selection: $categoryID)
                     }
                 }
         }
@@ -38,10 +38,14 @@ struct GuideView: View {
                 model.alertMessage = error.localizedDescription
             }
         }
-        .task(id: ChannelQuery(sourceID: model.activeSource?.id, categoryID: categoryID)) {
+        .onChange(of: model.includesLocked) {
+            if let categoryID, !visibleCategories.contains(where: { $0.category.id == categoryID }) { self.categoryID = nil }
+        }
+        .task(id: ChannelQuery(sourceID: model.activeSource?.id, categoryID: categoryID, includesLocked: model.includesLocked)) {
             guard let sourceID = model.activeSource?.id else { return }
             do {
-                for try await channels in model.database.observeChannels(sourceID: sourceID, categoryID: categoryID) {
+                for try await channels in model.database.observeChannels(sourceID: sourceID, categoryID: categoryID,
+                                                                         includingLocked: model.includesLocked) {
                     self.channels = channels
                     hasLoaded = true
                 }
@@ -75,13 +79,19 @@ struct GuideView: View {
 
     /// The list the player zaps through when a channel is picked here.
     private func context(sourceID: Int64) -> ChannelListContext {
-        let title = categories.first { $0.category.id == categoryID }?.category.name ?? "All Channels"
+        let title = categories.first { $0.category.id == categoryID }?.category.displayName ?? "All Channels"
         return ChannelListContext(sourceID: sourceID, list: categoryID.map { .category($0) } ?? .all, title: title)
+    }
+
+    /// The categories to offer. Locked ones are left out until the PIN opens them in Live TV or Movies.
+    private var visibleCategories: [CategorySummary] {
+        model.parental.isRestricted ? categories.filter { !$0.category.isLocked } : categories
     }
 
     private struct ChannelQuery: Equatable {
         var sourceID: Int64?
         var categoryID: Int64?
+        var includesLocked: Bool
     }
 }
 
@@ -95,7 +105,7 @@ private struct CategoryChips: View {
             HStack(spacing: 8) {
                 chip("All", id: nil)
                 ForEach(categories) { summary in
-                    chip(summary.category.name, id: summary.category.id)
+                    chip(summary.category.displayName, id: summary.category.id)
                 }
             }
             .padding(.horizontal, 16)

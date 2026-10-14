@@ -70,6 +70,10 @@ final class VLCPlayerEngine: PlayerEngine {
         if let userAgent = item.headers["User-Agent"] { media.addOption(":http-user-agent=\(userAgent)") }
         if let referrer = item.headers["Referer"] { media.addOption(":http-referrer=\(referrer)") }
         if let start = item.startPosition, start > 0 { media.addOption(":start-time=\(start)") }
+        if let buffer = item.liveBuffer { media.addOption(":network-caching=\(Int(buffer * 1000))") }
+        // VLC picks these tracks itself when the stream has them.
+        if let language = item.audioLanguage { media.addOption(":audio-language=\(language)") }
+        if let language = item.subtitleLanguage { media.addOption(":sub-language=\(language)") }
 
         isActive = true
         hasStarted = false

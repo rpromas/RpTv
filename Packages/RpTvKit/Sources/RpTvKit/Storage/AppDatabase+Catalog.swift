@@ -184,22 +184,104 @@ extension AppDatabase {
         try rebuildSearchIndex(db, movieSearchTable)
     }
 
-    /// Replaces a source's categories of one kind, keeping the ones the user hid hidden.
-    /// Returns the new category ids by remote id.
+    /// Replaces a source's categories of one kind, carrying over what the user changed (hidden, locked, renamed,
+    /// reordered) by remote id. Returns the new category ids by remote id.
     private static func replaceCategories(_ db: Database, sourceID: Int64, kind: MediaCategory.Kind,
                                           with groups: [CatalogGroup]) throws -> [String: Int64] {
         let existing = MediaCategory.filter(Column("sourceID") == sourceID && Column("kind") == kind)
-        let hiddenRemoteIDs = try Set(String.fetchAll(db, existing.filter(Column("isHidden") == true).select(Column("remoteID"))))
+        let previous = try Dictionary(existing.fetchAll(db).map { ($0.remoteID, $0) }, uniquingKeysWith: { first, _ in first })
         try existing.deleteAll(db)
 
         var categoryIDs: [String: Int64] = [:]
         for (index, group) in groups.enumerated() where categoryIDs[group.remoteID] == nil {
-            var category = MediaCategory(sourceID: sourceID, kind: kind, remoteID: group.remoteID, name: group.name,
-                                         sortIndex: index, isHidden: hiddenRemoteIDs.contains(group.remoteID))
+            var category = MediaCategory(sourceID: sourceID, kind: kind, remoteID: group.remoteID, name: group.name, sortIndex: index)
+            if let old = previous[group.remoteID] {
+                category.isHidden = old.isHidden
+                category.isLocked = old.isLocked
+                category.customName = old.customName
+                category.customSortIndex = old.customSortIndex
+            }
             try category.insert(db)
             categoryIDs[group.remoteID] = category.id
         }
         return categoryIDs
+    }
+}
+
+// MARK: - Categories
+
+extension AppDatabase {
+    /// Changes one category, found by its remote id so a sync that ran meanwhile doesn't lose the change.
+    public func updateCategory(sourceID: Int64, kind: MediaCategory.Kind, remoteID: String,
+                               _ modify: @escaping @Sendable (inout MediaCategory) -> Void) async throws {
+        try await writer.write { db in
+            guard var category = try MediaCategory
+                .filter(Column("sourceID") == sourceID && Column("kind") == kind && Column("remoteID") == remoteID)
+                .fetchOne(db) else { return }
+            modify(&category)
+            try category.update(db)
+        }
+    }
+
+    /// Gives a category the user's name. An empty name, or the provider's, goes back to the provider's.
+    public func renameCategory(sourceID: Int64, kind: MediaCategory.Kind, remoteID: String, to name: String) async throws {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        try await updateCategory(sourceID: sourceID, kind: kind, remoteID: remoteID) { category in
+            category.customName = trimmed.isEmpty || trimmed == category.name ? nil : trimmed
+        }
+    }
+
+    /// Puts a source's categories of one kind in the order of `remoteIDs`. Categories missing from it keep their
+    /// order, after those.
+    public func reorderCategories(sourceID: Int64, kind: MediaCategory.Kind, remoteIDs: [String]) async throws {
+        try await writer.write { db in
+            let categories = try MediaCategory
+                .filter(Column("sourceID") == sourceID && Column("kind") == kind)
+                .order(Self.categoryOrder)
+                .fetchAll(db)
+            let position = Dictionary(remoteIDs.enumerated().map { ($1, $0) }, uniquingKeysWith: { first, _ in first })
+            let ordered = categories.enumerated().sorted { a, b in
+                (position[a.element.remoteID] ?? remoteIDs.count + a.offset) < (position[b.element.remoteID] ?? remoteIDs.count + b.offset)
+            }
+            for (index, entry) in ordered.enumerated() where entry.element.customSortIndex != index {
+                var category = entry.element
+                category.customSortIndex = index
+                try category.update(db)
+            }
+        }
+    }
+
+    /// Unlocks every category of every source, for when parental controls are turned off.
+    public func unlockAllCategories() async throws {
+        try await writer.write { db in
+            _ = try MediaCategory.filter(Column("isLocked") == true).updateAll(db, Column("isLocked").set(to: false))
+        }
+    }
+
+    /// The user's order, then the provider's for categories the user hasn't placed.
+    static var categoryOrder: [any SQLOrderingTerm] {
+        [Column("customSortIndex") == nil, Column("customSortIndex"), Column("sortIndex")]
+    }
+
+    /// Every category of one kind, hidden ones included, in the user's order, each with its item count.
+    /// For the screen where the user manages them.
+    public func observeAllCategories(sourceID: Int64, kind: MediaCategory.Kind) -> AsyncThrowingStream<[CategorySummary], Error> {
+        let itemTable = kind == .movie ? Movie.databaseTableName : Channel.databaseTableName
+        return observe { db in
+            let rows = try Row.fetchAll(db, sql: """
+                SELECT mediaCategory.*, (SELECT COUNT(*) FROM \(itemTable) WHERE categoryID = mediaCategory.id) AS itemCount
+                FROM mediaCategory
+                WHERE sourceID = ? AND kind = ?
+                ORDER BY customSortIndex IS NULL, customSortIndex, sortIndex
+                """, arguments: [sourceID, kind])
+            return try rows.map { CategorySummary(category: try MediaCategory(row: $0), itemCount: $0["itemCount"]) }
+        }
+    }
+
+    /// Ids of the categories the user locked. Their items are left out of lists, search, favorites and recents
+    /// unless the caller says locked content is open.
+    static var lockedCategoryIDs: QueryInterfaceRequest<MediaCategory> {
+        MediaCategory.filter(Column("isLocked") == true).select(Column("id"))
     }
 }
 
@@ -214,7 +296,8 @@ extension AppDatabase {
         observe { db in try Source.order(Column("createdAt")).fetchAll(db) }
     }
 
-    /// Visible live categories of a source, each with its channel count. Empty categories are skipped.
+    /// Visible live categories of a source, in the user's order, each with its channel count. Empty categories are
+    /// skipped. Locked ones are listed, so the user can unlock them.
     public func observeLiveCategories(sourceID: Int64) -> AsyncThrowingStream<[CategorySummary], Error> {
         observeCategories(sourceID: sourceID, kind: .live, itemTable: Channel.databaseTableName)
     }
@@ -228,7 +311,7 @@ extension AppDatabase {
                 JOIN \(itemTable) AS item ON item.categoryID = mediaCategory.id
                 WHERE mediaCategory.sourceID = ? AND mediaCategory.kind = ? AND mediaCategory.isHidden = 0
                 GROUP BY mediaCategory.id
-                ORDER BY mediaCategory.sortIndex
+                ORDER BY mediaCategory.customSortIndex IS NULL, mediaCategory.customSortIndex, mediaCategory.sortIndex
                 """, arguments: [sourceID, kind])
             return try rows.map { CategorySummary(category: try MediaCategory(row: $0), itemCount: $0["itemCount"]) }
         }
@@ -236,8 +319,9 @@ extension AppDatabase {
 
     /// Channels of a source, optionally narrowed to one category and to names with words starting with each
     /// word of `search` (ignoring case and diacritics). Channels in hidden categories are left out unless a
-    /// category is picked explicitly.
-    public func observeChannels(sourceID: Int64, categoryID: Int64?, search: String = "") -> AsyncThrowingStream<[Channel], Error> {
+    /// category is picked explicitly. Channels in locked categories are left out unless `includingLocked`.
+    public func observeChannels(sourceID: Int64, categoryID: Int64?, search: String = "",
+                                includingLocked: Bool = false) -> AsyncThrowingStream<[Channel], Error> {
         observe { db in
             var request = Channel.filter(Column("sourceID") == sourceID)
             if let categoryID {
@@ -245,6 +329,9 @@ extension AppDatabase {
             } else {
                 let hidden = MediaCategory.filter(Column("isHidden") == true).select(Column("id"))
                 request = request.filter(Column("categoryID") == nil || !hidden.contains(Column("categoryID")))
+            }
+            if !includingLocked {
+                request = request.filter(Column("categoryID") == nil || !Self.lockedCategoryIDs.contains(Column("categoryID")))
             }
             if !search.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 // Text with no words in it, like "%", matches nothing.

@@ -34,6 +34,14 @@ public struct XtreamClient: Sendable {
 
     /// Logs in and checks that the account is usable.
     public func authenticate() async throws -> XtreamAccount {
+        let account = try await accountInfo()
+        guard account.user.isActive else { throw XtreamError.accountInactive(status: account.user.status ?? "unknown") }
+        return account
+    }
+
+    /// Logs in and returns the account as the server describes it, whether or not it's active: expiry date,
+    /// status, connections and trial flag.
+    public func accountInfo() async throws -> XtreamAccount {
         let account: XtreamAccount
         do {
             account = try await get(XtreamAccount.self, action: nil)
@@ -41,7 +49,6 @@ public struct XtreamClient: Sendable {
             throw XtreamError.unauthorized
         }
         guard account.user.isAuthenticated else { throw XtreamError.unauthorized }
-        guard account.user.isActive else { throw XtreamError.accountInactive(status: account.user.status ?? "unknown") }
         return account
     }
 

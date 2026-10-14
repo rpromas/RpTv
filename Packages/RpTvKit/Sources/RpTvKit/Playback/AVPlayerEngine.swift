@@ -38,6 +38,8 @@ public final class AVPlayerEngine: PlayerEngine {
     @ObservationIgnored private let pictureInPicture: AVPictureInPictureController?
     @ObservationIgnored private var audioGroup: AVMediaSelectionGroup?
     @ObservationIgnored private var subtitleGroup: AVMediaSelectionGroup?
+    /// The item being played, for the track languages it asks for.
+    @ObservationIgnored private var item: PlaybackItem?
     @ObservationIgnored private var tracksTask: Task<Void, Never>?
     @ObservationIgnored private var observations: [NSKeyValueObservation] = []
     @ObservationIgnored private var timeObserver: Any?
@@ -92,6 +94,8 @@ public final class AVPlayerEngine: PlayerEngine {
             options["AVURLAssetHTTPHeaderFieldsKey"] = item.headers
         }
         let playerItem = AVPlayerItem(asset: AVURLAsset(url: item.url, options: options))
+        if let buffer = item.liveBuffer { playerItem.preferredForwardBufferDuration = buffer }
+        self.item = item
         #if os(tvOS) || os(visionOS)
         // Shown by the system player UI.
         playerItem.externalMetadata = [Self.metadata(.commonIdentifierTitle, item.title)]
@@ -163,7 +167,23 @@ public final class AVPlayerEngine: PlayerEngine {
         guard !Task.isCancelled, player.currentItem === item else { return }
         audioGroup = audio
         subtitleGroup = legible
+        selectPreferredLanguages(in: item)
         refreshTracks()
+    }
+
+    /// Picks the audio and subtitle tracks in the languages the user prefers, when the stream has them.
+    private func selectPreferredLanguages(in playerItem: AVPlayerItem) {
+        func option(in group: AVMediaSelectionGroup?, _ language: String?) -> AVMediaSelectionOption? {
+            guard let group, let language else { return nil }
+            return AVMediaSelectionGroup.mediaSelectionOptions(from: group.options, withoutMediaCharacteristics: [.containsOnlyForcedSubtitles])
+                .first { TrackLanguage.matches($0.extendedLanguageTag ?? $0.locale?.identifier, language) }
+        }
+        if let audioGroup, let audio = option(in: audioGroup, item?.audioLanguage) {
+            playerItem.select(audio, in: audioGroup)
+        }
+        if let subtitleGroup, let subtitle = option(in: subtitleGroup, item?.subtitleLanguage) {
+            playerItem.select(subtitle, in: subtitleGroup)
+        }
     }
 
     private func refreshTracks() {

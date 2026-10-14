@@ -35,7 +35,9 @@ public struct XtreamCredentials: Sendable, Hashable {
         self.init(server: playlistURL, username: username, password: password)
     }
 
-    static func normalizeServer(_ raw: String) -> URL? {
+    /// The server's base URL from what the user typed: `http://` added when there's no scheme, and any query or
+    /// `player_api.php`-style path dropped. `nil` when there's no host.
+    public static func normalizeServer(_ raw: String) -> URL? {
         var text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return nil }
         if !text.contains("://") { text = "http://" + text }

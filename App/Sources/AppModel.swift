@@ -14,7 +14,9 @@ final class AppModel {
     let credentials: any CredentialStore
     let syncService: SourceSyncService
     let epgSyncService: EPGSyncService
-    let resolver: PlaybackResolver
+    let settings: AppSettings
+    /// The parental-control PIN, and whether locked categories are open right now.
+    let parental: ParentalControls
     /// Programme reminders from the guide.
     let reminders = Reminders()
     /// Set when the on-disk database couldn't be opened and the app fell back to memory.
@@ -34,6 +36,8 @@ final class AppModel {
     var alertMessage: String?
     /// Whether the Add Source sheet is up. `RootView` presents it, so it can blur the whole app behind it on Mac.
     var isAddingSource = false
+    /// A request for the parental PIN, shown by `RootView`.
+    var pinRequest: PINRequest?
 
     var activeSourceID: Int64? {
         didSet { UserDefaults.standard.set(activeSourceID, forKey: Self.activeSourceKey) }
@@ -43,17 +47,26 @@ final class AppModel {
         sources.first { $0.id == activeSourceID } ?? sources.first
     }
 
+    /// Builds what the player plays, with the user's playback settings.
+    var resolver: PlaybackResolver {
+        PlaybackResolver(credentials: credentials, preferences: settings.playback)
+    }
+
+    /// Whether lists, search, favorites and recents may show what's in locked categories right now.
+    var includesLocked: Bool { !parental.isRestricted }
+
     private static let activeSourceKey = "activeSourceID"
     /// The setting that reopens the last channel at launch. Off unless the user turns it on.
     static let resumeLastChannelKey = "resumeLastChannel"
-    private static let staleInterval: TimeInterval = 24 * 60 * 60
 
-    init(database: AppDatabase, credentials: any CredentialStore, playlistDirectory: URL, startupError: String? = nil) {
+    init(database: AppDatabase, credentials: any CredentialStore, playlistDirectory: URL, settings: AppSettings = AppSettings(),
+         startupError: String? = nil) {
         self.database = database
         self.credentials = credentials
         self.syncService = SourceSyncService(database: database, credentials: credentials, playlistDirectory: playlistDirectory)
         self.epgSyncService = EPGSyncService(database: database, credentials: credentials)
-        self.resolver = PlaybackResolver(credentials: credentials)
+        self.settings = settings
+        self.parental = ParentalControls(store: credentials)
         self.startupError = startupError
         self.activeSourceID = (UserDefaults.standard.object(forKey: Self.activeSourceKey) as? NSNumber)?.int64Value
         reminders.onOpen = { [weak self] sourceID, stableKey in
@@ -70,6 +83,7 @@ final class AppModel {
             // UI tests start from a clean slate every launch.
             UserDefaults.standard.removeObject(forKey: activeSourceKey)
             UserDefaults.standard.removeObject(forKey: resumeLastChannelKey)
+            AppSettings.reset()
             return AppModel(database: try! AppDatabase.inMemory(), credentials: InMemoryCredentialStore(),
                             playlistDirectory: playlists)
         }
@@ -97,9 +111,7 @@ final class AppModel {
     }
 
     func addPlaylist(name: String, url: String, epgURL: String?, userAgent: String?) async throws {
-        var trimmed = url.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmed.contains("://") { trimmed = "http://" + trimmed }
-        guard let parsed = URL(string: trimmed), parsed.host() != nil else { throw SyncError.invalidLocation }
+        let parsed = try Self.playlistURL(url)
         let source = Source(
             name: name.nonEmptyTrimmed ?? parsed.host() ?? "Playlist",
             kind: .m3u,
@@ -156,6 +168,14 @@ final class AppModel {
         }
     }
 
+    /// The playlist address the user typed, with `http://` added when it has no scheme.
+    private static func playlistURL(_ text: String) throws -> URL {
+        var trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.contains("://") { trimmed = "http://" + trimmed }
+        guard let parsed = URL(string: trimmed), parsed.host() != nil else { throw SyncError.invalidLocation }
+        return parsed
+    }
+
     /// Saves a source and runs its first sync. If the sync fails, the source is removed again.
     private func addAndSync(_ source: Source) async throws {
         let saved = try await database.insertSource(source)
@@ -181,10 +201,89 @@ final class AppModel {
         }
     }
 
-    /// Refreshes sources whose catalog is older than a day.
+    /// Refreshes sources whose catalog is older than the interval set in Settings.
     func refreshStaleSources() async {
-        for source in sources where (source.lastSyncedAt ?? .distantPast).timeIntervalSinceNow < -Self.staleInterval {
+        guard let interval = settings.catalogRefreshInterval else { return }
+        for source in sources where (source.lastSyncedAt ?? .distantPast).timeIntervalSinceNow < -interval {
             try? await sync(source)
+        }
+    }
+
+    /// Saves the user's changes to a source. When the address, login or headers change, the source is synced
+    /// again to check them, and the changes are undone if that fails.
+    func save(_ edit: SourceEdit, to sourceID: Int64) async throws {
+        guard syncPhases[sourceID] == nil else { throw SourceEditError.syncInProgress }
+        guard let original = try await database.source(id: sourceID) else { return }
+        var updated = original
+        updated.name = edit.name.nonEmptyTrimmed ?? original.name
+        updated.epgURL = edit.epgURL.nonEmptyTrimmed
+        updated.userAgent = edit.userAgent.nonEmptyTrimmed
+        updated.referrer = edit.referrer.nonEmptyTrimmed
+        updated.enginePreference = edit.enginePreference
+        // A new password goes under a new key, so the old one still works if the check fails.
+        var newKey: String?
+        switch original.kind {
+        case .xtream:
+            guard let server = XtreamCredentials.normalizeServer(edit.location) else { throw XtreamError.invalidServer }
+            updated.location = server.absoluteString
+            updated.username = edit.username.trimmingCharacters(in: .whitespaces)
+            if !edit.password.isEmpty {
+                let key = UUID().uuidString
+                try credentials.setPassword(edit.password, for: key)
+                updated.credentialKey = key
+                newKey = key
+            }
+        case .m3u:
+            if !original.isLocalFile { updated.location = try Self.playlistURL(edit.location).absoluteString }
+        }
+        if updated.epgURL != original.epgURL { updated.lastEPGSyncError = nil }
+
+        let needsSync = updated.location != original.location || updated.username != original.username || newKey != nil
+            || updated.userAgent != original.userAgent || updated.referrer != original.referrer
+        do {
+            try await database.updateSource(updated)
+            if needsSync { try await sync(updated) }
+        } catch {
+            try? await database.updateSource(original)
+            if let newKey { try? credentials.deletePassword(for: newKey) }
+            throw error
+        }
+        if newKey != nil, let oldKey = original.credentialKey { try? credentials.deletePassword(for: oldKey) }
+        if needsSync || updated.epgURL != original.epgURL {
+            refreshGuideInBackground(updated, force: true)
+        }
+    }
+
+    /// The Xtream account's status, straight from the server.
+    func accountStatus(of source: Source) async throws -> XtreamAccount {
+        try await syncService.accountStatus(of: source)
+    }
+
+    // MARK: - Export and import
+
+    /// The sources as JSON, without passwords or imported playlist files.
+    func exportSources() throws -> Data {
+        try SourceExport(sources: sources).encoded()
+    }
+
+    /// Whether a source with the same address and login is already added.
+    func hasSource(like entry: SourceExport.Entry) -> Bool {
+        sources.contains { $0.kind == entry.kind && $0.location == entry.location && $0.username == entry.username }
+    }
+
+    /// Adds an exported source and syncs it. Xtream accounts need their password.
+    func importSource(_ entry: SourceExport.Entry, password: String) async throws {
+        var key: String?
+        if entry.needsPassword {
+            guard !password.isEmpty else { throw SyncError.missingPassword }
+            key = UUID().uuidString
+            try credentials.setPassword(password, for: key!)
+        }
+        do {
+            try await addAndSync(entry.makeSource(credentialKey: key))
+        } catch {
+            if let key { try? credentials.deletePassword(for: key) }
+            throw error
         }
     }
 
@@ -198,7 +297,7 @@ final class AppModel {
         defer { guideSyncing.remove(sourceID) }
         // Re-read the source: a catalog sync may just have found its guide URL.
         guard let source = try? await database.source(id: sourceID), EPGSyncService.hasGuide(source),
-              force || EPGSyncService.isStale(source) else { return }
+              force || EPGSyncService.isStale(source, interval: settings.guideRefreshInterval) else { return }
         try? await epgSyncService.sync(source)
     }
 
@@ -208,33 +307,17 @@ final class AppModel {
         Task { await syncGuide(sourceID: id, force: force) }
     }
 
-    /// Refreshes guides older than 12 hours, one source at a time.
+    /// Refreshes guides older than the interval set in Settings, one source at a time.
     func refreshStaleGuides() async {
         for id in sources.compactMap(\.id) {
             await syncGuide(sourceID: id, force: false)
         }
     }
 
-    /// Saves the guide URL the user entered (empty clears it) and downloads the guide again.
-    func setEPGURL(_ text: String, for source: Source) async {
-        guard let id = source.id else { return }
-        let epgURL = text.nonEmptyTrimmed
-        guard epgURL != source.epgURL else { return }
+    /// Deletes every source's TV guide. They download again on the next refresh.
+    func clearGuides() async {
         do {
-            try await database.modifySource(id: id) {
-                $0.epgURL = epgURL
-                $0.lastEPGSyncError = nil
-            }
-            await syncGuide(sourceID: id, force: true)
-        } catch {
-            alertMessage = error.localizedDescription
-        }
-    }
-
-    func setEnginePreference(_ preference: EnginePreference, for source: Source) async {
-        guard let id = source.id else { return }
-        do {
-            try await database.modifySource(id: id) { $0.enginePreference = preference }
+            try await database.clearGuides()
         } catch {
             alertMessage = error.localizedDescription
         }
@@ -251,6 +334,46 @@ final class AppModel {
             if activeSourceID == id { activeSourceID = nil }
         } catch {
             alertMessage = error.localizedDescription
+        }
+    }
+
+    // MARK: - Parental controls
+
+    /// Asks for the parental PIN (or Face ID), unless no PIN is set. A right answer also opens locked
+    /// categories for the session.
+    func authorize(reason: String) async -> Bool {
+        guard parental.hasPIN else { return true }
+        pinRequest?.finish(false)
+        return await withCheckedContinuation { continuation in
+            pinRequest = PINRequest(reason: reason, continuation: continuation)
+        }
+    }
+
+    /// Opens locked categories for the session, asking for the PIN unless they're open already.
+    @discardableResult
+    func unlockLockedContent() async -> Bool {
+        guard parental.isRestricted else { return true }
+        return await authorize(reason: "Enter your PIN to open locked categories.")
+    }
+
+    /// Removes the PIN and unlocks every category. Needs the session unlocked.
+    func turnOffParentalControls() async {
+        do {
+            try parental.removePIN()
+            try await database.unlockAllCategories()
+        } catch {
+            alertMessage = error.localizedDescription
+        }
+    }
+
+    /// Runs a change to the database, reporting a failure in an alert.
+    func perform(_ change: @escaping @MainActor () async throws -> Void) {
+        Task {
+            do {
+                try await change()
+            } catch {
+                alertMessage = error.localizedDescription
+            }
         }
     }
 
@@ -298,7 +421,7 @@ final class AppModel {
         guard let source = sources.first(where: { $0.id == channel.sourceID }) else { return }
         do {
             playerSession = try PlayerSession(channel: channel, source: source, context: context, catchup: catchup,
-                                              database: database, resolver: resolver)
+                                              includesLocked: includesLocked, database: database, resolver: resolver)
         } catch {
             alertMessage = error.localizedDescription
         }
@@ -330,7 +453,7 @@ final class AppModel {
     /// Reopens the channel played last, if the user turned that on in Settings. Call once sources have loaded.
     func resumeLastChannelIfEnabled() async {
         guard UserDefaults.standard.bool(forKey: Self.resumeLastChannelKey), playerSession == nil,
-              let channel = try? await database.lastPlayedChannel(), playerSession == nil else { return }
+              let channel = try? await database.lastPlayedChannel(includingLocked: includesLocked), playerSession == nil else { return }
         play(channel, in: .allChannels(of: channel.sourceID))
     }
 }
@@ -338,6 +461,57 @@ final class AppModel {
 extension ChannelListContext {
     static func allChannels(of sourceID: Int64) -> ChannelListContext {
         ChannelListContext(sourceID: sourceID, list: .all, title: "All Channels")
+    }
+}
+
+/// What the user can change about a source, as typed in the edit form.
+struct SourceEdit {
+    var name: String
+    /// The playlist URL, or the Xtream server.
+    var location: String
+    var username: String
+    /// Empty keeps the saved password.
+    var password = ""
+    var epgURL: String
+    var userAgent: String
+    var referrer: String
+    var enginePreference: EnginePreference
+
+    init(_ source: Source) {
+        name = source.name
+        location = source.location
+        username = source.username ?? ""
+        epgURL = source.epgURL ?? ""
+        userAgent = source.userAgent ?? ""
+        referrer = source.referrer ?? ""
+        enginePreference = source.enginePreference
+    }
+}
+
+enum SourceEditError: LocalizedError {
+    case syncInProgress
+
+    var errorDescription: String? {
+        switch self {
+        case .syncInProgress: "This source is updating. Try again when it's done."
+        }
+    }
+}
+
+/// A request for the parental PIN. Answered once: by the PIN sheet, or with `false` when the sheet goes away.
+@MainActor
+final class PINRequest: Identifiable {
+    let reason: String
+    private var continuation: CheckedContinuation<Bool, Never>?
+
+    init(reason: String, continuation: CheckedContinuation<Bool, Never>) {
+        self.reason = reason
+        self.continuation = continuation
+    }
+
+    func finish(_ granted: Bool) {
+        continuation?.resume(returning: granted)
+        continuation = nil
     }
 }
 

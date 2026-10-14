@@ -49,7 +49,7 @@ struct SearchView: View {
             .navigationDestination(for: MovieSummary.self) { movie in
                 MovieDetailView(summary: movie)
             }
-            .task(id: query) { await search(query) }
+            .task(id: SearchKey(query: query, includesLocked: model.includesLocked)) { await search(query) }
             .sheet(item: $selection, onDismiss: playPending) { selection in
                 ProgrammeDetailView(channel: selection.channel, programmeID: selection.programmeID) { catchup in
                     pendingPlay = (selection.channel, catchup)
@@ -148,7 +148,7 @@ struct SearchView: View {
         // Wait for a pause in typing.
         do { try await Task.sleep(for: .milliseconds(150)) } catch { return }
         do {
-            for try await results in model.database.observeSearch(query) {
+            for try await results in model.database.observeSearch(query, includingLocked: model.includesLocked) {
                 self.results = results
                 resultsQuery = query
             }
@@ -169,6 +169,11 @@ struct SearchView: View {
         if start <= .now { return "Now" }
         if Calendar.current.isDateInToday(start) { return start.formatted(.dateTime.hour().minute()) }
         return start.formatted(.dateTime.weekday().hour().minute())
+    }
+
+    private struct SearchKey: Equatable {
+        var query: String
+        var includesLocked: Bool
     }
 
     private struct ProgrammeSelection: Identifiable {

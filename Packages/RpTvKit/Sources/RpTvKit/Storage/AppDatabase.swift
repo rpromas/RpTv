@@ -218,6 +218,18 @@ public final class AppDatabase: Sendable {
             }
         }
 
+        migrator.registerMigration("v7") { db in
+            // The user's changes to categories. A sync replaces the rows, and carries these over by remoteID.
+            try db.alter(table: MediaCategory.databaseTableName) { t in
+                t.add(column: "customName", .text)
+                t.add(column: "customSortIndex", .integer)
+                t.add(column: "isLocked", .boolean).notNull().defaults(to: false)
+            }
+            try db.alter(table: Source.databaseTableName) { t in
+                t.add(column: "accountExpiresAt", .datetime)
+            }
+        }
+
         return migrator
     }
 

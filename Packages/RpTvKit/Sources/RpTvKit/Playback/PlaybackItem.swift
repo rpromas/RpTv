@@ -16,6 +16,12 @@ public struct PlaybackItem: Sendable, Hashable, Identifiable {
     public var startPosition: TimeInterval?
     /// The engine the user wants for this item's source.
     public var enginePreference: EnginePreference
+    /// How much of a live stream to buffer before playing, or `nil` for the engine's default.
+    public var liveBuffer: TimeInterval?
+    /// Language codes (`en`, `fr`…) of the audio and subtitle tracks to pick when the stream has them.
+    /// No subtitle language means subtitles stay off.
+    public var audioLanguage: String?
+    public var subtitleLanguage: String?
 
     public init(
         id: String,
@@ -26,7 +32,10 @@ public struct PlaybackItem: Sendable, Hashable, Identifiable {
         headers: [String: String] = [:],
         isLive: Bool,
         startPosition: TimeInterval? = nil,
-        enginePreference: EnginePreference = .automatic
+        enginePreference: EnginePreference = .automatic,
+        liveBuffer: TimeInterval? = nil,
+        audioLanguage: String? = nil,
+        subtitleLanguage: String? = nil
     ) {
         self.id = id
         self.url = url
@@ -37,15 +46,63 @@ public struct PlaybackItem: Sendable, Hashable, Identifiable {
         self.isLive = isLive
         self.startPosition = startPosition
         self.enginePreference = enginePreference
+        self.liveBuffer = liveBuffer
+        self.audioLanguage = audioLanguage
+        self.subtitleLanguage = subtitleLanguage
     }
+}
+
+/// The user's playback settings, applied to every item the resolver builds.
+public struct PlaybackPreferences: Sendable, Hashable {
+    /// The engine for sources left on ``EnginePreference/automatic``.
+    public var engine: EnginePreference
+    public var liveBuffer: TimeInterval?
+    public var audioLanguage: String?
+    public var subtitleLanguage: String?
+
+    public init(engine: EnginePreference = .automatic, liveBuffer: TimeInterval? = nil,
+                audioLanguage: String? = nil, subtitleLanguage: String? = nil) {
+        self.engine = engine
+        self.liveBuffer = liveBuffer
+        self.audioLanguage = audioLanguage
+        self.subtitleLanguage = subtitleLanguage
+    }
+}
+
+/// Matches the language tags streams give their tracks against the user's preferred language.
+public enum TrackLanguage {
+    /// Whether a track's language tag (`fr`, `fra`, `fre`, `fr-CA`…) names the same language as `language`.
+    public static func matches(_ tag: String?, _ language: String) -> Bool {
+        guard let tag, let code = tag.split(whereSeparator: { $0 == "-" || $0 == "_" }).first,
+              let wanted = alpha2(language) else { return false }
+        return alpha2(String(code)) == wanted
+    }
+
+    /// The two-letter code of a two- or three-letter one, or the code itself when there's none.
+    static func alpha2(_ code: String) -> String? {
+        var code = code.trimmingCharacters(in: .whitespaces).lowercased()
+        guard !code.isEmpty else { return nil }
+        code = bibliographic[code] ?? code
+        return Locale.LanguageCode(code).identifier(.alpha2) ?? code
+    }
+
+    /// ISO 639-2 bibliographic codes, which MPEG-TS streams often use, and their terminology twins, which
+    /// `Locale` knows.
+    private static let bibliographic = [
+        "alb": "sqi", "arm": "hye", "baq": "eus", "bur": "mya", "chi": "zho", "cze": "ces", "dut": "nld",
+        "fre": "fra", "geo": "kat", "ger": "deu", "gre": "ell", "ice": "isl", "mac": "mkd", "mao": "mri",
+        "may": "msa", "per": "fas", "rum": "ron", "slo": "slk", "tib": "bod", "wel": "cym",
+    ]
 }
 
 /// Builds playback items for catalog entries, adding credentials and per-source headers.
 public struct PlaybackResolver: Sendable {
     private let credentials: any CredentialStore
+    public var preferences: PlaybackPreferences
 
-    public init(credentials: any CredentialStore) {
+    public init(credentials: any CredentialStore, preferences: PlaybackPreferences = PlaybackPreferences()) {
         self.credentials = credentials
+        self.preferences = preferences
     }
 
     public func item(for channel: Channel, in source: Source) throws -> PlaybackItem {
@@ -81,7 +138,9 @@ public struct PlaybackResolver: Sendable {
             artworkURL: movie.posterURL.flatMap(URL.init(string:)),
             headers: headers,
             isLive: false,
-            enginePreference: source.enginePreference
+            enginePreference: enginePreference(for: source),
+            audioLanguage: preferences.audioLanguage,
+            subtitleLanguage: preferences.subtitleLanguage
         )
     }
 
@@ -121,7 +180,15 @@ public struct PlaybackResolver: Sendable {
             artworkURL: channel.logoURL.flatMap(URL.init(string:)),
             headers: headers,
             isLive: isLive,
-            enginePreference: source.enginePreference
+            enginePreference: enginePreference(for: source),
+            liveBuffer: isLive ? preferences.liveBuffer : nil,
+            audioLanguage: preferences.audioLanguage,
+            subtitleLanguage: preferences.subtitleLanguage
         )
+    }
+
+    /// The source's own engine, or the app's default when the source leaves it to the app.
+    private func enginePreference(for source: Source) -> EnginePreference {
+        source.enginePreference == .automatic ? preferences.engine : source.enginePreference
     }
 }

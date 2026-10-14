@@ -17,9 +17,17 @@ public struct MediaCategory: Codable, Sendable, Hashable, Identifiable {
     public var kind: Kind
     /// Provider identifier: the Xtream `category_id`, or the M3U `group-title`.
     public var remoteID: String
+    /// The name the provider gives it.
     public var name: String
+    /// The provider's order.
     public var sortIndex: Int
     public var isHidden: Bool
+    /// The name the user gave it, shown instead of ``name``.
+    public var customName: String?
+    /// The user's order. Categories the user hasn't placed (new ones from a later sync) follow those that have one.
+    public var customSortIndex: Int?
+    /// Locked by parental controls: the PIN is needed to see what it holds.
+    public var isLocked: Bool
 
     public init(
         id: Int64? = nil,
@@ -28,7 +36,10 @@ public struct MediaCategory: Codable, Sendable, Hashable, Identifiable {
         remoteID: String,
         name: String,
         sortIndex: Int,
-        isHidden: Bool = false
+        isHidden: Bool = false,
+        customName: String? = nil,
+        customSortIndex: Int? = nil,
+        isLocked: Bool = false
     ) {
         self.id = id
         self.sourceID = sourceID
@@ -37,5 +48,11 @@ public struct MediaCategory: Codable, Sendable, Hashable, Identifiable {
         self.name = name
         self.sortIndex = sortIndex
         self.isHidden = isHidden
+        self.customName = customName
+        self.customSortIndex = customSortIndex
+        self.isLocked = isLocked
     }
+
+    /// The name to show: the user's, else the provider's.
+    public var displayName: String { customName ?? name }
 }

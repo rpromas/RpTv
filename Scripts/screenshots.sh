@@ -3,13 +3,16 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-# Takes the App Store screenshots on the iPhone 6.9" and iPad 13" simulators, from the demo playlist only.
+# Takes the App Store screenshots on the iPhone 6.9" and 6.3" and iPad 13" simulators, from the demo playlist
+# only.
 #
 # Usage: Scripts/screenshots.sh [output directory, default build/screenshots]
 #
+# RPTV_SCREENSHOT_DEVICES picks other simulators, one name per line.
+#
 # Serves the demo playlist with a made-up guide (Scripts/make-screenshot-content.py), sets a clean status bar
 # and dark mode, runs UITests/ScreenshotUITests on each simulator, and saves its attachments as
-# <output>/<device>/<n> <screen>.png. Needs an iPhone 17 Pro Max and an iPad Pro 13-inch (M5) simulator.
+# <output>/<device>/<n> <screen>.png. Needs iPhone 17 Pro Max, iPhone 17 Pro and iPad Pro 13-inch (M5) simulators.
 
 set -eu
 
@@ -17,10 +20,11 @@ ROOT=$(cd "$(dirname "$0")/.." && pwd)
 OUT=${1:-"$ROOT/build/screenshots"}
 WORK="$ROOT/build/screenshot-run"
 PORT=8765
-DEVICES="iPhone 17 Pro Max
-iPad Pro 13-inch (M5)"
+DEVICES=${RPTV_SCREENSHOT_DEVICES:-"iPhone 17 Pro Max
+iPhone 17 Pro
+iPad Pro 13-inch (M5)"}
 
-rm -rf "$WORK" "$OUT"
+rm -rf "$WORK"
 mkdir -p "$WORK/content" "$OUT"
 "$ROOT/Scripts/make-screenshot-content.py" "$WORK/content" "$PORT"
 python3 -m http.server "$PORT" --bind 127.0.0.1 --directory "$WORK/content" > "$WORK/server.log" 2>&1 &
@@ -57,6 +61,7 @@ for runtime, devices in json.load(sys.stdin)["devices"].items():
         -only-testing:RpTvUITests/ScreenshotUITests -resultBundlePath "$result" test -quiet < /dev/null || status=$?
 
     xcrun xcresulttool export attachments --path "$result" --output-path "$WORK/$udid"
+    rm -rf "$OUT/$device"
     mkdir -p "$OUT/$device"
     python3 - "$WORK/$udid" "$OUT/$device" <<'EOF'
 import json, os, re, shutil, sys

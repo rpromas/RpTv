@@ -93,13 +93,23 @@ struct ProgrammeDetailView: View {
 
     private func actions(_ programme: Programme, now: Date, isOnAir: Bool) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Button("Watch Channel", systemImage: "play.fill") { onWatch(nil) }
-                .buttonStyle(.glassProminent)
-                .accessibilityIdentifier("watchChannelButton")
-            if channel.isCatchupPlayable(programme, now: now) {
-                Button("Watch from Start", systemImage: "clock.arrow.circlepath") { onWatch(programme) }
-                    .buttonStyle(.glass)
+            if programme.start <= now && !isOnAir && channel.isCatchupPlayable(programme, now: now) {
+                // A recording: watching it comes first, the live channel second.
+                Button("Watch Recording", systemImage: "play.fill") { onWatch(programme) }
+                    .buttonStyle(.glassProminent)
                     .accessibilityIdentifier("watchFromStartButton")
+                Button("Watch Live", systemImage: "dot.radiowaves.left.and.right") { onWatch(nil) }
+                    .buttonStyle(.glass)
+                    .accessibilityIdentifier("watchChannelButton")
+            } else {
+                Button("Watch Channel", systemImage: "play.fill") { onWatch(nil) }
+                    .buttonStyle(.glassProminent)
+                    .accessibilityIdentifier("watchChannelButton")
+                if channel.isCatchupPlayable(programme, now: now) {
+                    Button("Watch from Start", systemImage: "clock.arrow.circlepath") { onWatch(programme) }
+                        .buttonStyle(.glass)
+                        .accessibilityIdentifier("watchFromStartButton")
+                }
             }
             if programme.start > now {
                 Button(hasReminder ? "Cancel Reminder" : "Remind Me", systemImage: hasReminder ? "bell.slash" : "bell") {

@@ -19,3 +19,7 @@ Package.resolved
 
 # Personal signing settings (team ID), included by Config/Signing.xcconfig
 Config/Local.xcconfig
+
+# Local docs (the privacy policy stays tracked: the app and App Store Connect link to it)
+docs/*
+!docs/privacy.md

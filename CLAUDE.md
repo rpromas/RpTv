@@ -50,4 +50,4 @@ The UI tests (`UITests/`) skip unless `TEST_RUNNER_RPTV_PLAYLIST_URL` points to 
 - Swift 6 with strict concurrency. Swift Testing (`@Test`) for unit tests, with fixtures in `Tests/RpTvKitTests/Fixtures`.
 - Every source file starts with the MPL-2.0 header.
 - Never add real channel lists or provider URLs anywhere in the repo.
-- Release: `docs/app-store.md` (checklist, metadata, review notes). Bundle IDs are `$(BUNDLE_ID_PREFIX).…`, set with the team in `Config/Signing.xcconfig`. A new required-reason API (file timestamps, disk space, boot time…) in the app, a package or FFmpeg needs a matching entry in that binary's privacy manifest (`App/PrivacyInfo.xcprivacy`, or the one `Scripts/build-ffmpeg.sh` writes).
+- Release: `docs/app-store.md` (checklist, metadata, review notes) is local only, ignored by git; don't commit it. Bundle IDs are `$(BUNDLE_ID_PREFIX).…`, set with the team in `Config/Signing.xcconfig`. A new required-reason API (file timestamps, disk space, boot time…) in the app, a package or FFmpeg needs a matching entry in that binary's privacy manifest (`App/PrivacyInfo.xcprivacy`, or the one `Scripts/build-ffmpeg.sh` writes).

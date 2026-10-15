@@ -86,7 +86,7 @@ TEST_RUNNER_RPTV_GUIDE_PLAYLIST_URL=http://127.0.0.1:8765/playlist.m3u \
 
 ## Releasing
 
-[docs/app-store.md](docs/app-store.md) has the App Store checklist, metadata, review notes and upload steps. `Scripts/screenshots.sh` takes the App Store screenshots on the simulators, from the demo playlist only. The privacy policy is [docs/privacy.md](docs/privacy.md).
+`Scripts/screenshots.sh` takes the App Store screenshots on the simulators, from the demo playlist only. The privacy policy is [docs/privacy.md](docs/privacy.md).
 
 ## Project layout
 
@@ -106,7 +106,7 @@ Vendor/FFmpeg/       FFmpeg sources (git submodule, pinned to a release tag)
 Scripts/             Build scripts, demo guide and screenshot content generators, screenshots
 UITests/             End-to-end UI tests
 Support/             Demo playlist
-docs/                App Store release notes, privacy policy
+docs/                Privacy policy
 project.yml          XcodeGen project spec
 Config/              Build settings (signing; your Local.xcconfig with the team ID)
 ```

@@ -1,4 +1,4 @@
-#EXTM3U
+#EXTM3U url-tvg="https://raw.githubusercontent.com/rpromas/RpTv/main/Support/demo-guide.xml.gz"
 #EXTINF:-1 tvg-id="apple.bipbop.basic" group-title="Apple Samples",BipBop Basic
 https://devstreaming-cdn.apple.com/videos/streaming/examples/bipbop_16x9/bipbop_16x9_variant.m3u8
 #EXTINF:-1 tvg-id="apple.bipbop.fmp4" group-title="Apple Samples",BipBop Advanced (fMP4)

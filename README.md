@@ -82,7 +82,7 @@ TEST_RUNNER_RPTV_GUIDE_PLAYLIST_URL=http://127.0.0.1:8765/playlist.m3u \
 
 `testTransportStreamPlaysThroughBridge` launches with `--prefer-bridge`, which turns the AirPlay bridge on without AirPlay (the simulator has none).
 
-`Support/demo-playlist.m3u` contains only Apple's public sample streams: HLS, plus one raw MPEG-TS segment that exercises the FFmpeg engine, and a WWDC session MP4 that shows up under Movies. It also serves as the demo source for App Review.
+`Support/demo-playlist.m3u` contains only Apple's public sample streams: HLS, plus one raw MPEG-TS segment that exercises the FFmpeg engine, and a WWDC session MP4 that shows up under Movies. Its `url-tvg` points to `Support/demo-guide.xml.gz` on GitHub, a made-up guide for those channels written by `Scripts/make-sample-guide.py`. It also serves as the demo source for App Review.
 
 ## Releasing
 
@@ -105,7 +105,7 @@ Packages/StreamBridge/  AirPlay bridge: converts streams AVPlayer can't open int
 Vendor/FFmpeg/       FFmpeg sources (git submodule, pinned to a release tag)
 Scripts/             Build scripts, demo guide and screenshot content generators, screenshots
 UITests/             End-to-end UI tests
-Support/             Demo playlist
+Support/             Demo playlist and its made-up guide
 docs/                Privacy policy
 project.yml          XcodeGen project spec
 Config/              Build settings (signing; your Local.xcconfig with the team ID)

@@ -16,7 +16,8 @@ swift test --package-path Packages/RpTvKit --filter M3UParserTests   # a single 
 swift test --package-path Packages/FFmpeg            # checks the FFmpeg build (codecs present, LGPL only)
 swift test --package-path Packages/StreamBridge      # the FFmpeg player and the AirPlay bridge on synthetic fixtures, HLS server
 xcodebuild -project RpTv.xcodeproj -scheme RpTv -destination 'platform=iOS Simulator,name=iPhone 17' build
-Scripts/screenshots.sh                              # App Store screenshots on the iPhone 6.9" and iPad 13" simulators
+Scripts/screenshots.sh                              # App Store screenshots on the iPhone 6.9"/6.3" and iPad 13" simulators, from a made-up Xtream server
+Scripts/make-store-assets.swift                     # App Store header and search results assets (after screenshots.sh)
 ```
 The UI tests (`UITests/`) skip unless `TEST_RUNNER_RPTV_PLAYLIST_URL` points to a served copy of `Support/demo-playlist.m3u`, and (for `GuideUITests`) `TEST_RUNNER_RPTV_GUIDE_PLAYLIST_URL` to the output of `Scripts/make-demo-guide.py`. See README.
 

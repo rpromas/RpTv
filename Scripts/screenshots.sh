@@ -3,14 +3,13 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-# Takes the App Store screenshots on the iPhone 6.9" and 6.3" and iPad 13" simulators, from the demo playlist
-# only.
+# Takes the App Store screenshots on the iPhone 6.9" and 6.3" and iPad 13" simulators.
 #
 # Usage: Scripts/screenshots.sh [output directory, default build/screenshots]
 #
 # RPTV_SCREENSHOT_DEVICES picks other simulators, one name per line.
 #
-# Serves the demo playlist with a made-up guide (Scripts/make-screenshot-content.py), sets a clean status bar
+# Runs a made-up Xtream server with Blender open movies (Scripts/screenshot-server.py), sets a clean status bar
 # and dark mode, runs UITests/ScreenshotUITests on each simulator, and saves its attachments as
 # <output>/<device>/<n> <screen>.png. Needs iPhone 17 Pro Max, iPhone 17 Pro and iPad Pro 13-inch (M5) simulators.
 
@@ -25,9 +24,8 @@ iPhone 17 Pro
 iPad Pro 13-inch (M5)"}
 
 rm -rf "$WORK"
-mkdir -p "$WORK/content" "$OUT"
-"$ROOT/Scripts/make-screenshot-content.py" "$WORK/content" "$PORT"
-python3 -m http.server "$PORT" --bind 127.0.0.1 --directory "$WORK/content" > "$WORK/server.log" 2>&1 &
+mkdir -p "$WORK" "$OUT"
+"$ROOT/Scripts/screenshot-server.py" "$PORT" > "$WORK/server.log" 2>&1 &
 SERVER=$!
 trap 'kill $SERVER 2>/dev/null' EXIT INT TERM
 
@@ -56,7 +54,7 @@ for runtime, devices in json.load(sys.stdin)["devices"].items():
 
     result="$WORK/$udid.xcresult"
     status=0
-    TEST_RUNNER_RPTV_SCREENSHOT_PLAYLIST_URL="http://127.0.0.1:$PORT/playlist.m3u" \
+    TEST_RUNNER_RPTV_SCREENSHOT_SERVER="http://127.0.0.1:$PORT" \
         xcodebuild -project RpTv.xcodeproj -scheme RpTv -destination "id=$udid" \
         -only-testing:RpTvUITests/ScreenshotUITests -resultBundlePath "$result" test -quiet < /dev/null || status=$?
 

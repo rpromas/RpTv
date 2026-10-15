@@ -86,7 +86,7 @@ TEST_RUNNER_RPTV_GUIDE_PLAYLIST_URL=http://127.0.0.1:8765/playlist.m3u \
 
 ## Releasing
 
-`Scripts/screenshots.sh` takes the App Store screenshots on the simulators, from the demo playlist only. The privacy policy is [docs/privacy.md](docs/privacy.md).
+`Scripts/screenshots.sh` takes the App Store screenshots on the simulators, from a made-up Xtream server (`Scripts/screenshot-server.py`) with made-up channels and Blender Foundation open movies (CC BY, credited in `Support/screenshot-art/CREDITS.md`). The privacy policy is [docs/privacy.md](docs/privacy.md).
 
 ## Project layout
 
@@ -103,9 +103,9 @@ Packages/RpTvKit/    Core library, platform independent and unit tested
 Packages/FFmpeg/     FFmpeg as a Swift package (the XCFramework is built by Scripts/build-ffmpeg.sh)
 Packages/StreamBridge/  AirPlay bridge: converts streams AVPlayer can't open into local HLS
 Vendor/FFmpeg/       FFmpeg sources (git submodule, pinned to a release tag)
-Scripts/             Build scripts, demo guide and screenshot content generators, screenshots
+Scripts/             Build scripts, demo guide generator, screenshots and their server
 UITests/             End-to-end UI tests
-Support/             Demo playlist and its made-up guide
+Support/             Demo playlist and its made-up guide, screenshot art
 docs/                Privacy policy
 project.yml          XcodeGen project spec
 Config/              Build settings (signing; your Local.xcconfig with the team ID)

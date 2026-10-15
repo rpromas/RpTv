@@ -51,17 +51,23 @@ struct BackdropImage: View {
     let url: String?
 
     var body: some View {
-        LazyImage(url: url.flatMap(URL.init(string:))) { state in
-            if let image = state.image {
-                image
-                    .resizable()
-                    .scaledToFill()
-            } else {
-                Rectangle().fill(.fill.quaternary)
+        // Fills the frame it's given. As the view itself, a filled image wider than the screen would make the
+        // whole page that wide.
+        Color.clear
+            .overlay {
+                LazyImage(url: url.flatMap(URL.init(string:))) { state in
+                    if let image = state.image {
+                        image
+                            .resizable()
+                            .scaledToFill()
+                    } else {
+                        Rectangle().fill(.fill.quaternary)
+                    }
+                }
+                .processors([.resize(width: 1200)])
             }
-        }
-        .processors([.resize(width: 1200)])
-        .accessibilityHidden(true)
+            .clipped()
+            .accessibilityHidden(true)
     }
 }
 

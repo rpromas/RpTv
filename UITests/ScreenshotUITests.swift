@@ -6,9 +6,9 @@ import XCTest
 
 /// App Store screenshots, saved as attachments named by their place in the listing ("1 Live TV").
 ///
-/// `Scripts/screenshots.sh` serves the demo playlist with a made-up guide (`Scripts/make-screenshot-content.py`),
-/// runs this on the iPhone 6.9" and iPad 13" simulators, and exports the attachments. Pass the playlist's URL as
-/// `TEST_RUNNER_RPTV_SCREENSHOT_PLAYLIST_URL`.
+/// `Scripts/screenshots.sh` runs a made-up Xtream server with Blender open movies (`Scripts/screenshot-server.py`),
+/// runs this on the iPhone 6.9" and 6.3" and iPad 13" simulators, and exports the attachments. Pass the server's
+/// URL as `TEST_RUNNER_RPTV_SCREENSHOT_SERVER`.
 final class ScreenshotUITests: XCTestCase {
     @MainActor private var isPad: Bool { UIDevice.current.userInterfaceIdiom == .pad }
 
@@ -18,37 +18,35 @@ final class ScreenshotUITests: XCTestCase {
 
     @MainActor
     func testScreenshots() throws {
-        guard let playlistURL = ProcessInfo.processInfo.environment["RPTV_SCREENSHOT_PLAYLIST_URL"] else {
-            throw XCTSkip("Set RPTV_SCREENSHOT_PLAYLIST_URL to run this test.")
+        guard let server = ProcessInfo.processInfo.environment["RPTV_SCREENSHOT_SERVER"] else {
+            throw XCTSkip("Set RPTV_SCREENSHOT_SERVER to run this test.")
         }
         XCUIDevice.shared.orientation = isPad ? .landscapeLeft : .portrait
         let app = XCUIApplication()
         app.launchArguments = ["--uitesting"]
         app.launch()
 
+        // Xtream Codes is the form's first type.
         app.buttons["Add Source"].tap()
-        app.buttons["Playlist URL"].tap()
-        let urlField = app.textFields["playlistURLField"]
-        XCTAssertTrue(urlField.waitForExistence(timeout: 5))
-        urlField.tap()
-        urlField.typeText(playlistURL)
-        // Otherwise the source is named after the server, 127.0.0.1, which search results show.
-        let nameField = app.textFields["Name (optional)"]
-        nameField.tap()
-        nameField.typeText("Demo")
+        type(server, into: field(app.textFields, placeholder: "Server"))
+        type("demo", into: field(app.textFields, placeholder: "Username"))
+        type("demo", into: field(app.secureTextFields, placeholder: "Password"))
+        // Search results show the source's name.
+        type("Home", into: field(app.textFields, placeholder: "Name"))
         app.buttons["Add"].tap()
 
         // The guide imports after the catalog. Once the grid shows it, every list has its now/next.
-        let channel = app.buttons["BipBop Advanced (fMP4)"].firstMatch
+        // "Open Cinema, Catch-up available"
+        let channel = button(app, labelStartingWith: "Open Cinema")
         XCTAssertTrue(channel.waitForExistence(timeout: 60), "Channels didn't appear after adding the source")
         openTab(app, "Guide")
-        XCTAssertTrue(app.buttons["Watch BipBop Basic"].waitForExistence(timeout: 120), "The guide grid didn't appear")
-        sleep(2)
+        XCTAssertTrue(button(app, labelStartingWith: "Watch Open Cinema").waitForExistence(timeout: 120), "The guide grid didn't appear")
+        sleep(3)
         snapshot("3 Guide")
 
         openTab(app, "Live TV")
         XCTAssertTrue(channel.waitForExistence(timeout: 10))
-        sleep(1)
+        sleep(2)
         snapshot("1 Live TV")
 
         // The player in landscape, with its controls up (they don't fade out under --uitesting).
@@ -56,7 +54,7 @@ final class ScreenshotUITests: XCTestCase {
         let video = app.descendants(matching: .any)["nativeVideo"]
         XCTAssertTrue(video.waitForExistence(timeout: 10))
         XCUIDevice.shared.orientation = .landscapeLeft
-        sleep(8)
+        sleep(12)
         XCTAssertFalse(app.staticTexts["Can't Play This Stream"].exists)
         let playPause = app.buttons["playPauseButton"]
         for _ in 0..<3 where !playPause.waitForExistence(timeout: 1) {
@@ -69,31 +67,69 @@ final class ScreenshotUITests: XCTestCase {
         sleep(1)
 
         openTab(app, "Library")
-        let movies = app.segmentedControls["librarySwitcher"].buttons["Movies"]
-        XCTAssertTrue(movies.waitForExistence(timeout: 5))
-        movies.tap()
-        let poster = app.buttons["Discover Observation in SwiftUI (2023), 2023"].firstMatch
-        XCTAssertTrue(poster.waitForExistence(timeout: 10))
-        poster.tap()
+        let switcher = app.segmentedControls["librarySwitcher"]
+        XCTAssertTrue(switcher.buttons["Movies"].waitForExistence(timeout: 5))
+        switcher.buttons["Movies"].tap()
+        let movie = button(app, labelStartingWith: "Tears of Steel")
+        XCTAssertTrue(movie.waitForExistence(timeout: 10))
+        sleep(2)
+        snapshot("4 Movies")
+
+        // The plot comes with the details, fetched when the screen opens.
+        movie.tap()
         XCTAssertTrue(app.buttons["playMovieButton"].waitForExistence(timeout: 5))
-        sleep(1)
-        snapshot("4 Movie")
+        XCTAssertTrue(text(app, containing: "Amsterdam").waitForExistence(timeout: 10), "The movie's details didn't load")
+        sleep(2)
+        snapshot("5 Movie")
+
+        app.navigationBars.buttons["BackButton"].tap()
+        XCTAssertTrue(switcher.buttons["Series"].waitForExistence(timeout: 5))
+        switcher.buttons["Series"].tap()
+        let series = button(app, labelStartingWith: "Caminandes")
+        XCTAssertTrue(series.waitForExistence(timeout: 10))
+        series.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["episode-S1 E1"].waitForExistence(timeout: 10),
+                      "The series' episodes didn't load")
+        sleep(2)
+        snapshot("6 Series")
 
         openTab(app, "Settings")
         XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 5))
         sleep(1)
-        snapshot("5 Settings")
+        snapshot("8 Settings")
 
+        // Last: searching puts the tab bar away.
         openTab(app, "Search")
         let field = app.searchFields.firstMatch
         XCTAssertTrue(field.waitForExistence(timeout: 5))
         field.tap()
         // Search on the keyboard puts it away.
-        field.typeText("bipbop\n")
-        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'BipBop Basic'")).firstMatch
-            .waitForExistence(timeout: 5))
-        sleep(1)
-        snapshot("6 Search")
+        field.typeText("bunny\n")
+        XCTAssertTrue(button(app, labelStartingWith: "Big Buck Bunny").waitForExistence(timeout: 5))
+        sleep(2)
+        snapshot("7 Search")
+    }
+
+    @MainActor
+    private func field(_ fields: XCUIElementQuery, placeholder: String) -> XCUIElement {
+        fields.matching(NSPredicate(format: "placeholderValue BEGINSWITH %@", placeholder)).firstMatch
+    }
+
+    @MainActor
+    private func type(_ text: String, into field: XCUIElement) {
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        field.tap()
+        field.typeText(text)
+    }
+
+    @MainActor
+    private func button(_ app: XCUIApplication, labelStartingWith prefix: String) -> XCUIElement {
+        app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", prefix)).firstMatch
+    }
+
+    @MainActor
+    private func text(_ app: XCUIApplication, containing part: String) -> XCUIElement {
+        app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", part)).firstMatch
     }
 
     /// A tab bar button, or a sidebar cell on iPad in landscape.

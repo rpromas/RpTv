@@ -7,9 +7,8 @@ import SwiftUI
 
 /// Categories beside the channels. Collapses to a stack on iPhone.
 ///
-/// Regular width lays the two columns out in one navigation stack rather than a split view: a split view inside
-/// the tab sidebar keeps its old navigation bars when the tab sidebar is shown or hidden, and the floating tab
-/// bar then covers them until the device rotates.
+/// Regular width uses one navigation stack rather than a split view: inside the tab sidebar, a split view
+/// keeps stale navigation bars when the sidebar is toggled, and the floating tab bar covers them.
 struct LiveTVView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.horizontalSizeClass) private var sizeClass

@@ -18,8 +18,7 @@ public struct PlaybackItem: Sendable, Hashable, Identifiable {
     public var enginePreference: EnginePreference
     /// How much of a live stream to buffer before playing, or `nil` for the engine's default.
     public var liveBuffer: TimeInterval?
-    /// Language codes (`en`, `fr`…) of the audio and subtitle tracks to pick when the stream has them.
-    /// No subtitle language means subtitles stay off.
+    /// Language codes (`en`, `fr`…) of the tracks to pick. No subtitle language keeps subtitles off.
     public var audioLanguage: String?
     public var subtitleLanguage: String?
 
@@ -78,8 +77,7 @@ public enum TrackLanguage {
         return alpha2(String(code)) == wanted
     }
 
-    /// The language's name in the user's language ("French" for `fre`), or `nil` when the tag isn't a known
-    /// language.
+    /// The language's localized name ("French" for `fre`), or `nil` for an unknown tag.
     public static func displayName(_ tag: String?) -> String? {
         guard let tag, let code = tag.split(whereSeparator: { $0 == "-" || $0 == "_" }).first,
               let alpha2 = alpha2(String(code)) else { return nil }
@@ -94,8 +92,7 @@ public enum TrackLanguage {
         return Locale.LanguageCode(code).identifier(.alpha2) ?? code
     }
 
-    /// ISO 639-2 bibliographic codes, which MPEG-TS streams often use, and their terminology twins, which
-    /// `Locale` knows.
+    /// ISO 639-2 bibliographic codes, common in MPEG-TS, mapped to the terminology codes `Locale` knows.
     private static let bibliographic = [
         "alb": "sqi", "arm": "hye", "baq": "eus", "bur": "mya", "chi": "zho", "cze": "ces", "dut": "nld",
         "fre": "fra", "geo": "kat", "ger": "deu", "gre": "ell", "ice": "isl", "mac": "mkd", "mao": "mri",
@@ -182,8 +179,9 @@ public struct PlaybackResolver: Sendable {
         )
     }
 
-    /// The archive of `programme` on `channel`, from its start. A programme with no known end counts as
-    /// lasting an hour. Throws ``CatchupError/unavailable`` when the channel has no usable archive.
+    /// The archive of `programme` on `channel`, from its start. A programme with no known end lasts an hour.
+    ///
+    /// - Throws: ``CatchupError/unavailable`` when the channel has no usable archive.
     public func catchupItem(for channel: Channel, programme: Programme, in source: Source,
                             now: Date = .now) throws -> PlaybackItem {
         guard channel.canCatchUp else { throw CatchupError.unavailable }

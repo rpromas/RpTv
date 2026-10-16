@@ -169,8 +169,7 @@ public final class AppDatabase: Sendable {
         }
 
         migrator.registerMigration("v6") { db in
-            // Favorites and history point at items by stableKey, not id: a sync deletes and reinserts a
-            // source's rows, and these must survive that.
+            // Keyed by stableKey, not id, to survive resyncs.
             try db.create(table: Favorite.databaseTableName) { t in
                 t.column("sourceID", .integer).notNull().references(Source.databaseTableName, onDelete: .cascade)
                 t.column("kind", .text).notNull()
@@ -191,10 +190,8 @@ public final class AppDatabase: Sendable {
             // Finds the channel a programme search result is on.
             try db.create(index: "channel_source_guideID", on: Channel.databaseTableName, columns: ["sourceID", "guideID"])
 
-            // Full-text indexes over channel and movie names and programme titles, with diacritics folded so "cafe"
-            // finds "Café". They read their text from the tables (external content), and are rebuilt after
-            // each bulk write rather than kept in step by triggers: with triggers, resyncing 100,000 channels
-            // took seven times longer, and the index they left behind made searches slower.
+            // External-content full-text indexes with diacritics folded. They're rebuilt after each bulk write
+            // instead of kept in step by triggers, which made large resyncs ~7× slower.
             try db.create(virtualTable: Self.channelSearchTable, using: FTS5()) { t in
                 t.content = Channel.databaseTableName
                 t.contentRowID = "id"
@@ -256,8 +253,7 @@ public final class AppDatabase: Sendable {
             try db.create(index: "series_categoryID", on: Series.databaseTableName, columns: ["categoryID"])
             try db.create(index: "series_source_stableKey", on: Series.databaseTableName, columns: ["sourceID", "stableKey"])
 
-            // Seasons and episodes point at their series by stableKey: a sync replaces the series rows, and
-            // the episodes fetched when a series was opened must outlive that.
+            // Keyed by the series' stableKey, so fetched episodes survive resyncs.
             try db.create(table: Season.databaseTableName) { t in
                 t.column("sourceID", .integer).notNull().references(Source.databaseTableName, onDelete: .cascade)
                 t.column("seriesKey", .text).notNull()
@@ -328,8 +324,8 @@ public final class AppDatabase: Sendable {
     static let seriesSearchTable = "seriesSearch"
     static let programmeSearchTable = "programmeSearch"
 
-    /// Re-reads the indexed text of every row. Call after any write that adds, removes or renames
-    /// channels, movies, series or programmes. Rebuilding 100,000 channels takes about a quarter of a second.
+    /// Rebuilds the full-text indexes. Call after any write that adds, removes or renames channels, movies,
+    /// series or programmes.
     static func rebuildSearchIndex(_ db: Database, _ table: String) throws {
         try db.execute(sql: "INSERT INTO \(table)(\(table)) VALUES('rebuild')")
     }

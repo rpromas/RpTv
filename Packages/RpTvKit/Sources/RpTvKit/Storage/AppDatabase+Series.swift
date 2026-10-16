@@ -30,8 +30,7 @@ public struct SeriesEpisodes: Sendable, Equatable {
         seasons.first { $0.number == number }
     }
 
-    /// The episode Play should start, given each episode's progress by `stableKey`: the one watched last if it's
-    /// unfinished, else the one after it, else the first. `nil` when there are no episodes.
+    /// The episode Play should start: the one watched last if unfinished, else the next, else the first.
     public func upNext(progress: [String: PlaybackProgress]) -> Episode? {
         let latest = episodes
             .compactMap { episode in progress[episode.stableKey].map { (episode, $0) } }
@@ -52,8 +51,8 @@ public struct SeriesEpisodes: Sendable, Equatable {
 // MARK: - Writes
 
 extension AppDatabase {
-    /// Stores what `get_series_info` returned: the series' details, and its seasons and episodes in place of the
-    /// ones stored before. The series is found by `stableKey`, so a sync that ran meanwhile doesn't lose them.
+    /// Stores what `get_series_info` returned, replacing the series' seasons and episodes. The series is found
+    /// by `stableKey` in case a sync ran meanwhile.
     public func saveSeriesDetails(sourceID: Int64, stableKey: String, info: XtreamSeriesInfo, fetchedAt: Date = .now) async throws {
         try await writer.write { db in
             guard var series = try Series.filter(Column("sourceID") == sourceID && Column("stableKey") == stableKey).fetchOne(db)
@@ -80,15 +79,12 @@ extension AppDatabase {
 // MARK: - Reads
 
 extension AppDatabase {
-    /// Visible series categories of a source, in the user's order, each with its series count. Empty categories are
-    /// skipped. Locked ones are listed, so the user can unlock them.
+    /// Visible, non-empty series categories of a source, in the user's order, with series counts.
     public func observeSeriesCategories(sourceID: Int64) -> AsyncThrowingStream<[CategorySummary], Error> {
         observeCategories(sourceID: sourceID, kind: .series, itemTable: Series.databaseTableName)
     }
 
-    /// Series of a source for a poster grid, optionally narrowed to one category and to names with words starting
-    /// with each word of `search`. Series in hidden categories are left out unless a category is picked explicitly,
-    /// and series in locked categories unless `includingLocked`.
+    /// Series of a source for a poster grid, filtered like ``observeChannels(sourceID:categoryID:search:includingLocked:)``.
     public func observeSeries(sourceID: Int64, categoryID: Int64?, search: String = "", sort: MovieSort = .added,
                               includingLocked: Bool = false) -> AsyncThrowingStream<[SeriesSummary], Error> {
         observe { db in

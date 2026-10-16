@@ -8,8 +8,7 @@ import GRDB
 // MARK: - Writes
 
 extension AppDatabase {
-    /// Stores the details of a movie fetched from the provider. The movie is found by `stableKey`, so a sync that
-    /// ran meanwhile doesn't lose them.
+    /// Stores a movie's fetched details, finding it by `stableKey` in case a sync ran meanwhile.
     public func saveMovieDetails(sourceID: Int64, stableKey: String, details: XtreamVODInfo, fetchedAt: Date = .now) async throws {
         try await writer.write { db in
             guard var movie = try Movie.filter(Column("sourceID") == sourceID && Column("stableKey") == stableKey).fetchOne(db)
@@ -23,16 +22,12 @@ extension AppDatabase {
 // MARK: - Reads
 
 extension AppDatabase {
-    /// Visible movie categories of a source, in the user's order, each with its movie count. Empty categories are
-    /// skipped. Locked ones are listed, so the user can unlock them.
+    /// Visible, non-empty movie categories of a source, in the user's order, with movie counts.
     public func observeMovieCategories(sourceID: Int64) -> AsyncThrowingStream<[CategorySummary], Error> {
         observeCategories(sourceID: sourceID, kind: .movie, itemTable: Movie.databaseTableName)
     }
 
-    /// Movies of a source for a poster grid, optionally narrowed to one category and to names with words starting
-    /// with each word of `search` (ignoring case and diacritics).
-    /// Movies in hidden categories are left out unless a category is picked explicitly, and movies in locked
-    /// categories unless `includingLocked`.
+    /// Movies of a source for a poster grid, filtered like ``observeChannels(sourceID:categoryID:search:includingLocked:)``.
     public func observeMovies(sourceID: Int64, categoryID: Int64?, search: String = "", sort: MovieSort = .added,
                               includingLocked: Bool = false) -> AsyncThrowingStream<[MovieSummary], Error> {
         observe { db in

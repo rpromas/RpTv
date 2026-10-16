@@ -4,8 +4,7 @@
 
 import Foundation
 
-/// How far the user got into a movie or an episode. Points at the item by `stableKey`, like favorites, so it
-/// survives resyncs.
+/// How far the user got into a movie or an episode, keyed by ``ItemKey`` so it survives resyncs.
 public struct PlaybackProgress: Codable, Sendable, Hashable {
     public var sourceID: Int64
     public var kind: ItemKind

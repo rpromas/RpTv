@@ -30,16 +30,14 @@ public struct BridgePlan: Sendable, Equatable {
 
     /// Video codecs AVPlayer and Apple TV decode from HLS.
     static let copyableVideo: Set<String> = ["h264", "hevc"]
-    /// Audio that's copied. HLS also allows AC-3, E-AC-3 and MP3, but streams with them didn't start on an Apple
-    /// TV over AirPlay, while AAC works everywhere and re-encoding audio is cheap. `aac_latm` (common on DVB)
-    /// isn't plain AAC, so it's re-encoded too.
+    /// Audio that's copied. AC-3, E-AC-3 and MP3 are valid HLS but failed to start on Apple TV over AirPlay, so
+    /// they're re-encoded, as is `aac_latm`, which isn't plain AAC.
     static let copyableAudio: Set<String> = ["aac"]
 
     /// - Parameters:
     ///   - videoCodec: The video stream's codec, or `nil` for radio streams.
-    ///   - interlaced: Whether the video is interlaced. HLS only allows progressive video, and iPhone and Apple TV
-    ///     fail on interlaced H.264 (1080i broadcast channels), so interlaced video is always deinterlaced and
-    ///     re-encoded, even in a codec that could otherwise be copied.
+    ///   - interlaced: Whether the video is interlaced. Interlaced video is always deinterlaced and re-encoded:
+    ///     HLS requires progressive video, and Apple devices fail on interlaced H.264.
     ///   - audioCodec: The audio stream's codec, or `nil` when there is none.
     public init(videoCodec: String?, interlaced: Bool, audioCodec: String?) {
         video = videoCodec.map { codec in

@@ -9,7 +9,7 @@ public struct Movie: Codable, Sendable, Hashable, Identifiable {
     public var id: Int64?
     public var sourceID: Int64
     public var categoryID: Int64?
-    /// Identifies the movie across refreshes, so cached details (and later favorites and progress) survive a resync.
+    /// Identifies the movie across refreshes.
     public var stableKey: String
     public var name: String
     public var posterURL: String?
@@ -19,7 +19,7 @@ public struct Movie: Codable, Sendable, Hashable, Identifiable {
     public var addedAt: Date?
     /// The file type of the stream (`mp4`, `mkv`, …), which Xtream URLs end with.
     public var containerExtension: String?
-    /// Xtream movies are played by id, because their URLs embed the account password. M3U movies use streamURL.
+    /// Xtream movies are played by id, since their URLs embed the password. M3U movies use ``streamURL``.
     public var xtreamStreamID: Int?
     public var streamURL: String?
     public var year: Int?
@@ -92,8 +92,7 @@ public struct Movie: Codable, Sendable, Hashable, Identifiable {
     /// How long cached details are kept before they're fetched again.
     public static let detailsLifetime: TimeInterval = 7 * 24 * 60 * 60
 
-    /// Whether opening the movie should fetch its details: only Xtream has them, and only when they're
-    /// missing or over a week old.
+    /// Whether opening the movie should fetch its details: Xtream only, when missing or stale.
     public func needsDetails(now: Date = .now) -> Bool {
         guard xtreamStreamID != nil else { return false }
         guard let fetched = detailsFetchedAt else { return true }
@@ -123,8 +122,7 @@ public struct Movie: Codable, Sendable, Hashable, Identifiable {
     }
 }
 
-/// The few fields a poster grid needs. Reading only these keeps a 20,000-movie grid cheap, and saving a movie's
-/// details doesn't make the grid refetch.
+/// The few fields a poster grid needs, so large grids stay cheap and saving details doesn't refetch them.
 public struct MovieSummary: Codable, Sendable, Hashable, Identifiable {
     public var id: Int64
     public var sourceID: Int64

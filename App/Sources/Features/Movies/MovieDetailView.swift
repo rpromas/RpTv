@@ -5,8 +5,8 @@
 import RpTvKit
 import SwiftUI
 
-/// A movie's backdrop, poster and facts, with Play and the trailer. Details are fetched from the provider the
-/// first time the movie is opened, and again once they're a week old.
+/// A movie's backdrop, poster and facts, with Play and the trailer. Details are fetched on open when missing
+/// or stale.
 struct MovieDetailView: View {
     let summary: MovieSummary
 

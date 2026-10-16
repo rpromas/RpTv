@@ -36,9 +36,8 @@ public struct SubtitleImage: @unchecked Sendable {
     public var frame: CGRect
 }
 
-/// Decodes one subtitle stream into cues. Text formats (SubRip, ASS, WebVTT, mov_text) lose their styling;
-/// bitmap formats become images. Also decodes the closed captions (CEA-608) carried inside video frames.
-/// Teletext has its own decoder, ``TeletextDecoder``, since FFmpeg's needs libzvbi.
+/// Decodes one subtitle stream, or the CEA-608 captions in video frames, into cues. Text loses its styling;
+/// bitmaps become images. Teletext goes through ``TeletextDecoder`` instead.
 final class SubtitleDecoder {
     private let context: UnsafeMutablePointer<AVCodecContext>
     private let timeBase: AVRational
@@ -77,8 +76,7 @@ final class SubtitleDecoder {
         guard let codec = avcodec_find_decoder(AV_CODEC_ID_EIA_608) else { throw PlayerError.unsupportedCodec("eia_608") }
         context = avcodec_alloc_context3(codec)
         context.pointee.pkt_timebase = timeBase
-        // By default a caption is only sent once it's taken down, with its full timing: too late to show live.
-        // In real time, every change to the screen is sent as it happens.
+        // By default a caption arrives only once it's taken down; real time sends each change as it happens.
         var options = makeDictionary(["real_time": "1"])
         defer { av_dict_free(&options) }
         try check(avcodec_open2(context, codec, &options), "open caption decoder")
@@ -115,9 +113,8 @@ final class SubtitleDecoder {
         avcodec_flush_buffers(context)
     }
 
-    /// Decodes a packet. Returns the cue it carries, or a cue with no content when the packet clears the screen
-    /// (bitmap formats end a subtitle by sending an empty one). `videoSize` places bitmaps whose stream
-    /// doesn't give the size of the picture they were drawn for.
+    /// Decodes a packet into its cue, or an empty cue when it clears the screen. `videoSize` places bitmaps
+    /// whose stream doesn't give the picture size.
     func decode(_ packet: UnsafeMutablePointer<AVPacket>, videoSize: CGSize) -> SubtitleCue? {
         var subtitle = AVSubtitle()
         var got: Int32 = 0

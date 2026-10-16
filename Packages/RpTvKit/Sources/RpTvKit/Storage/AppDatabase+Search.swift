@@ -54,10 +54,11 @@ public struct SearchResults: Sendable, Equatable {
 }
 
 extension AppDatabase {
-    /// Searches every source for channels, movies, series and programmes whose names contain words starting with the words of
-    /// `text`, ignoring case and diacritics: "spo new" finds "Sports News", "cafe" finds "Café". Items in
-    /// hidden categories are left out, and so are those in locked categories unless `includingLocked`.
-    /// At most `limit` of each kind, best matches first.
+    /// Searches every source for channels, movies, series and programmes by word prefixes, ignoring case and
+    /// diacritics: "spo new" finds "Sports News", "cafe" finds "Café".
+    ///
+    /// Hidden categories are left out, locked ones unless `includingLocked`. Returns at most `limit` of each
+    /// kind, best matches first.
     public func observeSearch(_ text: String, now: Date = .now, limit: Int = 50,
                               includingLocked: Bool = false) -> AsyncThrowingStream<SearchResults, Error> {
         let pattern = Self.searchPattern(text)
@@ -75,7 +76,7 @@ extension AppDatabase {
         }
     }
 
-    /// Every word of `text` as a prefix, or nil when there's nothing to search for.
+    /// Every word of `text` as a prefix, or `nil` when there's nothing to search for.
     static func searchPattern(_ text: String) -> FTS5Pattern? {
         FTS5Pattern(matchingAllPrefixesIn: text)
     }

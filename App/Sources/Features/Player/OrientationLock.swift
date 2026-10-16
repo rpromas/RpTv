@@ -28,9 +28,8 @@ enum OrientationLock {
         if let scene = UIApplication.shared.activeWindowScene { applyChange(in: scene) }
     }
 
-    /// With the rotation lock on, iOS rotates only when an app asks, so closing the player in landscape (after its
-    /// full screen button) would leave the app there. Turns it back to portrait unless the device is held sideways;
-    /// with the rotation lock on, the device reports portrait however it's held.
+    /// Returns to portrait unless the device is held sideways. With the rotation lock on, iOS rotates only when
+    /// asked, so closing the player in landscape would otherwise leave the app there.
     static func returnToPortraitIfNeeded() {
         guard UIDevice.current.userInterfaceIdiom == .phone,
               let scene = UIApplication.shared.activeWindowScene,

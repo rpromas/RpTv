@@ -5,8 +5,7 @@
 import Foundation
 import GRDB
 
-// Watch progress of movies and episodes, for resuming and for Continue Watching. Like favorites, it points at
-// items by `ItemKey`, so it survives resyncs.
+// Watch progress of movies and episodes, keyed by `ItemKey` so it survives resyncs.
 
 /// A movie the user stopped partway through.
 public struct ContinueWatchingMovie: Sendable, Hashable, Identifiable {
@@ -35,9 +34,8 @@ extension AppDatabase {
     /// How many items each Continue Watching row holds.
     public static let continueWatchingLimit = 20
 
-    /// Records how far into a movie or episode playback got. At ``PlaybackProgress/watchedThreshold`` of its length
-    /// or more, the item is marked watched. A watched item stays watched when it's reopened and closed again
-    /// right away.
+    /// Records the playback position, marking the item watched past ``PlaybackProgress/watchedThreshold``.
+    /// A watched item stays watched when reopened briefly.
     public func saveProgress(_ key: ItemKey, position: TimeInterval, duration: TimeInterval, at date: Date = .now) async throws {
         try await writer.write { db in
             let wasWatched = try PlaybackProgress.fetchOne(db, key: Self.progressKey(key))?.isWatched ?? false
@@ -63,8 +61,7 @@ extension AppDatabase {
         }
     }
 
-    /// Takes an item off Continue Watching by forgetting its progress. For an episode, every unfinished episode
-    /// of its series goes, so the series leaves the row.
+    /// Takes an item off Continue Watching by forgetting its progress; for an episode, that of its whole series.
     public func removeFromContinueWatching(_ key: ItemKey) async throws {
         try await writer.write { db in
             if key.kind == .episode,
@@ -108,14 +105,12 @@ extension AppDatabase {
         }
     }
 
-    /// A source's movies stopped partway through, the latest first. Movies in locked categories are left out
-    /// unless `includingLocked`.
+    /// A source's movies stopped partway through, the latest first.
     public func observeContinueWatchingMovies(sourceID: Int64, includingLocked: Bool = false) -> AsyncThrowingStream<[ContinueWatchingMovie], Error> {
         observe { db in try Self.continueWatchingMovies(db, sourceID: sourceID, includingLocked: includingLocked) }
     }
 
-    /// For each series of a source with an episode stopped partway through, the latest such episode, latest first.
-    /// Series in locked categories are left out unless `includingLocked`.
+    /// The latest unfinished episode of each of a source's series, the latest first.
     public func observeContinueWatchingEpisodes(sourceID: Int64, includingLocked: Bool = false) -> AsyncThrowingStream<[ContinueWatchingEpisode], Error> {
         observe { db in try Self.continueWatchingEpisodes(db, sourceID: sourceID, includingLocked: includingLocked) }
     }

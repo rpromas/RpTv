@@ -5,8 +5,8 @@
 import RpTvKit
 import SwiftUI
 
-/// Near the end of an episode, offers the next one and plays it after a 10 s countdown. Reads the playback time
-/// itself, so the rest of the player doesn't redraw as it ticks.
+/// Near the end of an episode, offers the next one and plays it after a countdown. Reads the playback time
+/// itself so the rest of the player doesn't redraw as it ticks.
 struct UpNextPrompt: View {
     let session: PlayerSession
     let compact: Bool

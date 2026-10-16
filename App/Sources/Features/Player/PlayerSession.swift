@@ -22,8 +22,7 @@ struct ChannelListContext: Hashable {
 }
 
 extension AppDatabase {
-    /// The channels of `list`, kept up to date. `search` narrows All Channels and categories. Channels in locked
-    /// categories are left out unless `includingLocked`.
+    /// The channels of `list`, kept up to date and narrowed by `search`.
     func observeChannels(sourceID: Int64, list: ChannelList, search: String = "",
                          includingLocked: Bool) -> AsyncThrowingStream<[Channel], Error> {
         switch list {
@@ -41,11 +40,11 @@ extension AppDatabase {
 final class PlayerSession: Identifiable {
     let coordinator: PlaybackCoordinator
     let context: ChannelListContext?
-    /// The channel playing, or nil for a movie or an episode.
+    /// The channel playing, or `nil` for a movie or an episode.
     private(set) var channel: Channel?
-    /// The movie playing, or nil for a channel or an episode.
+    /// The movie playing, or `nil` for a channel or an episode.
     let movie: Movie?
-    /// The episode playing, or nil for a channel or a movie. Changes when the next one starts.
+    /// The episode playing, or `nil` for a channel or a movie. Changes when the next one starts.
     private(set) var episode: Episode?
     /// The series of ``episode``.
     let series: Series?
@@ -53,7 +52,7 @@ final class PlayerSession: Identifiable {
     private(set) var episodes = SeriesEpisodes()
     /// Set when the user turns down Up Next for the episode playing.
     var isUpNextDismissed = false
-    /// The programme playing from the archive, or nil when the channel is playing live.
+    /// The programme playing from the archive, or `nil` when the channel is playing live.
     private(set) var catchupProgramme: Programme?
     private(set) var zapList: ZapList
     /// Goes up on every zap and every move to the next episode, so the screen can show the banner.
@@ -69,8 +68,7 @@ final class PlayerSession: Identifiable {
     @ObservationIgnored private var recordTask: Task<Void, Never>?
     @ObservationIgnored private var progressTask: Task<Void, Never>?
 
-    /// How long something has to play before it counts as watched, so zapping past channels doesn't fill
-    /// the recent list.
+    /// How long something plays before it's added to recents, so zapping doesn't fill the list.
     private static let watchedAfter = Duration.seconds(5)
     /// How often the position of a movie or episode is saved while it plays.
     private static let progressInterval = Duration.seconds(10)
@@ -197,8 +195,8 @@ final class PlayerSession: Identifiable {
     /// The movie or episode playing, whose progress is saved.
     private var progressKey: ItemKey? { movie?.itemKey ?? episode?.itemKey }
 
-    /// Saves how far into the movie or episode playback is. Call on pause and when leaving; it also runs every
-    /// 10 s while playing, so a killed app loses little.
+    /// Saves the playback position of the movie or episode. Call on pause and when leaving; it also runs
+    /// periodically while playing.
     func saveProgress() {
         guard let key = progressKey, let engine = coordinator.engine, coordinator.item?.id == key.stableKey,
               engine.currentTime > 0, !coordinator.state.isFailed else { return }
@@ -240,8 +238,7 @@ final class PlayerSession: Identifiable {
         }
     }
 
-    /// Moves on to the next episode, from where it stopped if it was started before. The one playing counts as
-    /// watched, even if its credits didn't finish.
+    /// Moves on to the next episode, resuming it if started before, and marks the current one watched.
     func playNextEpisode() {
         guard let next = nextEpisode, let series, let current = episode, let engine = coordinator.engine else { return }
         let position = engine.currentTime, duration = engine.duration ?? 0

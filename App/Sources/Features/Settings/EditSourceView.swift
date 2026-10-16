@@ -5,8 +5,7 @@
 import RpTvKit
 import SwiftUI
 
-/// Changes a source's name, address, login, guide, headers and player. Saving checks a changed address or login
-/// by syncing the source again.
+/// Edits a source's name, address, login, guide, headers and player.
 struct EditSourceView: View {
     let source: Source
 

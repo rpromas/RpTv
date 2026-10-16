@@ -34,7 +34,7 @@ final class AppModel {
     var playerSession: PlayerSession?
     /// A user-facing error to show in an alert.
     var alertMessage: String?
-    /// Whether the Add Source sheet is up. `RootView` presents it, so it can blur the whole app behind it on Mac.
+    /// Whether the Add Source sheet is up. `RootView` presents it so it can blur the app behind it on Mac.
     var isAddingSource = false
     /// A request for the parental PIN, shown by `RootView`.
     var pinRequest: PINRequest?
@@ -209,8 +209,8 @@ final class AppModel {
         }
     }
 
-    /// Saves the user's changes to a source. When the address, login or headers change, the source is synced
-    /// again to check them, and the changes are undone if that fails.
+    /// Saves the user's changes to a source. A changed address, login or headers is checked by syncing again,
+    /// and undone if that fails.
     func save(_ edit: SourceEdit, to sourceID: Int64) async throws {
         guard syncPhases[sourceID] == nil else { throw SourceEditError.syncInProgress }
         guard let original = try await database.source(id: sourceID) else { return }
@@ -289,9 +289,9 @@ final class AppModel {
 
     // MARK: - TV guide
 
-    /// Downloads a source's TV guide unless it is already being downloaded. Without `force`, only when
-    /// the guide is over 12 hours old. Failures are recorded on the source rather than shown in an alert,
-    /// since this runs in the background.
+    /// Downloads a source's TV guide unless a download is already running.
+    ///
+    /// Without `force`, only stale guides are fetched. Failures are recorded on the source, not shown.
     func syncGuide(sourceID: Int64, force: Bool) async {
         guard guideSyncing.insert(sourceID).inserted else { return }
         defer { guideSyncing.remove(sourceID) }
@@ -339,8 +339,7 @@ final class AppModel {
 
     // MARK: - Parental controls
 
-    /// Asks for the parental PIN (or Face ID), unless no PIN is set. A right answer also opens locked
-    /// categories for the session.
+    /// Asks for the parental PIN (or Face ID), unless none is set. Success unlocks the session.
     func authorize(reason: String) async -> Bool {
         guard parental.hasPIN else { return true }
         pinRequest?.finish(false)
@@ -415,8 +414,8 @@ final class AppModel {
 
     // MARK: - Playback
 
-    /// Opens the player on `channel`. `context` is the list it was picked from, which the player zaps through.
-    /// With `catchup`, plays that programme from the channel's archive instead of the live stream.
+    /// Opens the player on `channel`, zapping through `context`. With `catchup`, plays that programme from
+    /// the archive instead.
     func play(_ channel: Channel, in context: ChannelListContext?, catchup: Programme? = nil) {
         guard let source = sources.first(where: { $0.id == channel.sourceID }) else { return }
         do {

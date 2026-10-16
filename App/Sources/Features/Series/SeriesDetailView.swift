@@ -5,9 +5,8 @@
 import RpTvKit
 import SwiftUI
 
-/// A series' backdrop, poster and facts, Play or Resume, and its episodes season by season with how far each
-/// was watched. Episodes are fetched from the provider the first time the series is opened, and again once they're
-/// a week old.
+/// A series' backdrop, poster and facts, Play or Resume, and its episodes by season with their progress.
+/// Episodes are fetched on open when missing or stale.
 struct SeriesDetailView: View {
     let summary: SeriesSummary
 

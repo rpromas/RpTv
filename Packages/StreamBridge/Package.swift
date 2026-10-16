@@ -6,8 +6,7 @@
 import PackageDescription
 
 // Everything built on FFmpeg: the player for streams AVPlayer can't open (StreamPlayer), and the bridge that turns
-// them into local HLS AVPlayer can play, so AirPlay can carry their video. Lives outside RpTvKit, which stays
-// quick to test.
+// them into local HLS for AirPlay. Kept out of RpTvKit so that stays quick to test.
 let package = Package(
     name: "StreamBridge",
     platforms: [

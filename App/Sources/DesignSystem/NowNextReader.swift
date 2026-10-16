@@ -5,9 +5,8 @@
 import RpTvKit
 import SwiftUI
 
-/// Hands its content what's on now and next for a list of channels, with one query for the whole
-/// list rather than one per row. It updates when the guide changes and at every minute boundary,
-/// so "now" moves on and progress bars advance.
+/// Hands its content what's on now and next for a list of channels, using one query for the whole list.
+/// Updates when the guide changes and on every minute boundary.
 struct NowNextReader<Content: View>: View {
     let database: AppDatabase
     let channelIDs: [Int64]

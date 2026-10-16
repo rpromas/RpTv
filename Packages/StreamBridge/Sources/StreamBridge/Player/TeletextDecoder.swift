@@ -12,13 +12,11 @@ struct TeletextPage: Hashable, Sendable {
 
 /// Decodes the subtitle pages of a DVB teletext stream (ETSI EN 300 472 carrying EN 300 706) into cues.
 ///
-/// Only what subtitles need: page headers, display rows 1–23, the character set designations in packets X/28 and
-/// M/29, boxed text, and the Latin, Cyrillic and Greek character sets. Colours, mosaics and the accented letters
-/// that level 1.5 adds through packets X/26 are left out.
+/// Only what subtitles need: page headers, rows 1–23, character set designations (X/28, M/29), boxed text, and
+/// the Latin, Cyrillic and Greek sets. Colours, mosaics and level 1.5 (X/26) are left out.
 ///
-/// A page is shown when the PES packet carrying it ends: subtitle encoders send each subtitle as one page in one
-/// packet, timed to appear at that packet's timestamp. A page sent again with the erase bit and no rows clears
-/// the screen.
+/// A page is shown when the PES packet carrying it ends, at that packet's timestamp. A page with the erase bit
+/// and no rows clears the screen.
 final class TeletextDecoder {
     struct Update {
         var page: TeletextPage

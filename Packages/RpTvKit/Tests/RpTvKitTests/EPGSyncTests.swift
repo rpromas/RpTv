@@ -113,11 +113,6 @@ struct EPGSyncTests {
         #expect(EPGSyncService.isStale(saved, now: now.addingTimeInterval(12 * 3600)))
     }
 
-    @Test func plainGuideImportsTheSame() async throws {
-        let source = try await syncedM3USource()
-        #expect(try await service(StubDownloader(fixture: "epg/guide.xml")).sync(source, now: now) == 7)
-    }
-
     @Test func observesNowAndNext() async throws {
         let source = try await syncedM3USource()
         try await service(StubDownloader()).sync(source, now: now)

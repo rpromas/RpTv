@@ -4,10 +4,9 @@
 
 /// Turns a live stream's timestamps into one continuous timeline starting near zero.
 ///
-/// IPTV timestamps jump: the encoder restarts, the server splices in another feed, or a reconnect resumes at a
-/// later point. Played as they are, a jump forward freezes the picture until the clock catches up and a jump back
-/// stalls it. Each stream's jump is detected on its own (audio and video arrive interleaved, so one crosses the
-/// jump before the other), and streams that jump by about the same amount share an offset so they stay in sync.
+/// IPTV timestamps jump when encoders restart, feeds are spliced or connections resume, which would freeze or
+/// stall playback. Each stream's jumps are detected on their own, and streams that jump by about the same amount
+/// share an offset so they stay in sync.
 struct LiveTimeline {
     /// A jump forward larger than this is a discontinuity rather than a gap in the stream.
     static let maxForwardGap = 2.0

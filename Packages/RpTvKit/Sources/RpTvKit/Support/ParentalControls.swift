@@ -52,9 +52,9 @@ public struct DeviceBiometrics: BiometricAuthenticator {
 
 /// The parental-control PIN, and whether locked categories are open in this session.
 ///
-/// Without a PIN nothing is restricted. With one, locked content stays hidden until ``unlock(pin:)`` (or Face ID,
-/// if turned on) succeeds, and until ``lock()`` closes it again. Changing the PIN or Face ID needs the session
-/// unlocked. After ``maxAttempts`` wrong PINs in a row, unlocking is refused for ``lockoutDuration``.
+/// Without a PIN nothing is restricted. With one, locked content stays hidden between ``lock()`` and a
+/// successful ``unlock(pin:)`` or Face ID. After ``maxAttempts`` wrong PINs, unlocking is refused for
+/// ``lockoutDuration``.
 @MainActor
 @Observable
 public final class ParentalControls {

@@ -4,8 +4,7 @@
 
 import Foundation
 
-/// Sources written out as JSON, to move them to another device. Passwords are never included: importing asks
-/// for each one. Imported playlist files are left out, since only their copy on this device exists.
+/// Sources as JSON, to move them to another device. Passwords and imported playlist files are left out.
 public struct SourceExport: Codable, Sendable, Equatable {
     public static let currentVersion = 1
 

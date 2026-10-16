@@ -46,8 +46,7 @@ struct RootView: View {
         }
         .preferredColorScheme(model.settings.appearance.colorScheme)
         .fullScreenCover(item: $model.playerSession) { session in
-            // Pass the model explicitly: the cover's content doesn't reliably inherit it, and the player's
-            // favorite button and channel list read it.
+            // The cover's content doesn't reliably inherit the environment.
             PlayerScreen(session: session)
                 .environment(model)
         }
@@ -68,9 +67,8 @@ struct MainTabView: View {
     @State private var selection = MainTab.liveTV
 
     var body: some View {
-        // In portrait iPadOS lays the tab sidebar over the content, dims it and closes it after every pick,
-        // so iPad offers the sidebar in landscape only. Switching style rebuilds the tabs; `selection` keeps
-        // the current one.
+        // In portrait the iPad sidebar overlays and dims the content, so it's offered in landscape only.
+        // Switching style rebuilds the tabs; `selection` keeps the current one.
         GeometryReader { proxy in
             if Self.isPad && proxy.size.height > proxy.size.width {
                 tabs.tabViewStyle(.tabBarOnly)

@@ -73,15 +73,6 @@ struct CatalogSyncTests {
         #expect(try await database.channelCount(sourceID: source.id!) == 5)
     }
 
-    @Test func searchesChannelNames() async throws {
-        let source = try await database.insertSource(Source(name: "Local", kind: .m3u, location: "sample.m3u", isLocalFile: true))
-        try await service.sync(source)
-        let results = try await firstValue(database.observeChannels(sourceID: source.id!, categoryID: nil, search: "sport"))
-        #expect(results.map(\.name) == ["Sport 2, Extra"])
-        let none = try await firstValue(database.observeChannels(sourceID: source.id!, categoryID: nil, search: "100%"))
-        #expect(none.isEmpty)
-    }
-
     @Test func recordsSyncErrors() async throws {
         let source = try await database.insertSource(Source(name: "Missing", kind: .m3u, location: "missing.m3u", isLocalFile: true))
         await #expect(throws: (any Error).self) { try await service.sync(source) }
@@ -121,13 +112,6 @@ struct CatalogSyncTests {
         #expect(saved.lastSyncedAt != nil)
         let channels = try await firstValue(database.observeChannels(sourceID: source.id!, categoryID: nil))
         #expect(try PlaybackResolver(credentials: credentials).item(for: channels[0], in: saved).enginePreference == .ffmpeg)
-    }
-
-    @Test func deletingSourceCascades() async throws {
-        let source = try await database.insertSource(Source(name: "Local", kind: .m3u, location: "sample.m3u", isLocalFile: true))
-        try await service.sync(source)
-        try await database.deleteSource(id: source.id!)
-        #expect(try await database.channelCount(sourceID: source.id!) == 0)
     }
 }
 

@@ -20,9 +20,10 @@ struct GuideMetrics: Equatable {
     static let regular = GuideMetrics(channelWidth: 210, rowHeight: 64, pointsPerMinute: 5, showsNames: true)
 }
 
-/// Channels down, time across, in one scroll view so every row shares the horizontal offset. The channel column
-/// stays pinned on the left and the time ruler at the top. The timeline spans all of the stored guide, but
-/// programmes load only for a window around what's on screen (see `GuideTimeScale.loadWindow`).
+/// Channels down, time across, in one scroll view so every row shares the horizontal offset.
+///
+/// The channel column is pinned on the left and the time ruler at the top. Programmes load only for a window
+/// around the viewport (`GuideTimeScale.loadWindow`).
 struct GuideGrid: View {
     let sourceID: Int64
     let channels: [Channel]
@@ -32,7 +33,7 @@ struct GuideGrid: View {
     @Environment(\.horizontalSizeClass) private var sizeClass
     /// The times the stored guide covers.
     @State private var range: DateInterval?
-    /// When the grid opened. Fixes the timeline's edges while the guide is empty, so it doesn't shift as time passes.
+    /// When the grid opened. Fixes the timeline's edges while the guide is empty.
     @State private var openedAt = Date.now
     @State private var slots: [String: [GuideSlot]] = [:]
     /// The load-window bucket the viewport's left edge is in. Changes only every few hours of scrolling.
@@ -113,8 +114,7 @@ struct GuideGrid: View {
             } catch {}
         }
         .task(id: SlotQuery(sourceID: sourceID, guideIDs: guideIDs, window: window)) {
-            // The guide is optional: on failure rows simply stay empty. The old slots stay up until new ones
-            // arrive, so cells don't blink while scrolling.
+            // On failure rows stay empty. Old slots stay up until new ones arrive, so cells don't blink.
             do {
                 for try await slots in model.database.observeGuide(sourceID: sourceID, guideIDs: guideIDs, window: window) {
                     self.slots = slots
@@ -138,8 +138,7 @@ struct GuideGrid: View {
         }
     }
 
-    /// Scrolls sideways only. `scrollTo(x:)` would also reset the vertical offset to 0, which puts the top rows
-    /// under the bars, so the current offset goes along.
+    /// Scrolls sideways only. `scrollTo(x:)` alone would reset the vertical offset, so the current one is passed.
     private func scroll(toX x: CGFloat) {
         position.scrollTo(point: CGPoint(x: x, y: offset.point.y))
     }
@@ -253,7 +252,7 @@ private struct GuideRow: View, Equatable {
     let onPlay: () -> Void
     let onSelect: (GuideSlot) -> Void
 
-    /// The closures only ever do the same thing for the same channel, so they don't count.
+    /// Ignores the closures: they always do the same thing for the same channel.
     nonisolated static func == (lhs: GuideRow, rhs: GuideRow) -> Bool {
         lhs.channel == rhs.channel && lhs.slots == rhs.slots && lhs.scale == rhs.scale && lhs.metrics == rhs.metrics
             && lhs.now == rhs.now

@@ -16,8 +16,8 @@ enum ReminderError: LocalizedError {
     }
 }
 
-/// "Remind me" for programmes: a local notification 5 minutes before the start. The pending notifications
-/// are the only record of which reminders are set. Tapping one opens the channel.
+/// Programme reminders: a local notification 5 minutes before the start, which opens the channel when tapped.
+/// The pending notifications are the only record of them.
 @MainActor
 final class Reminders: NSObject, UNUserNotificationCenterDelegate {
     static let lead: TimeInterval = 5 * 60
@@ -39,7 +39,8 @@ final class Reminders: NSObject, UNUserNotificationCenterDelegate {
     }
 
     /// Sets the reminder, or removes it if it's already set. Asks for permission the first time.
-    /// Returns whether a reminder is now set.
+    ///
+    /// - Returns: Whether a reminder is now set.
     func toggle(_ programme: Programme, on channel: Channel, now: Date = .now) async throws -> Bool {
         let id = Self.identifier(programme, channel)
         if await isScheduled(programme, on: channel) {

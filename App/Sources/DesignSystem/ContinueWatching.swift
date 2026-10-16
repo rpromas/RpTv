@@ -6,8 +6,7 @@ import NukeUI
 import RpTvKit
 import SwiftUI
 
-/// A row of movies, or of series' episodes, stopped partway through. Tapping one plays it where it stopped.
-/// Shows nothing when there's nothing to continue.
+/// A row of movies or episodes stopped partway through. Tapping one resumes it; empty when there's none.
 struct ContinueWatchingShelf: View {
     enum Kind {
         case movies
@@ -220,7 +219,7 @@ struct WatchProgressBar: View {
 }
 
 extension PlaybackProgress {
-    /// "42 min left", or nil when the length is unknown.
+    /// "42 min left", or `nil` when the length is unknown.
     var remainingText: String? {
         guard let remaining, remaining > 0 else { return nil }
         let rounded = max((remaining / 60).rounded(.up), 1) * 60

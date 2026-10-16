@@ -56,7 +56,9 @@ public struct SourceSyncService: Sendable {
         self.http = http ?? session
     }
 
-    /// Refreshes a source and returns how many channels, movies and series it now has. Records the outcome on the source.
+    /// Refreshes a source, recording the outcome on it.
+    ///
+    /// - Returns: How many channels, movies and series it now has.
     @discardableResult
     public func sync(_ source: Source, progress: @escaping @Sendable (SyncPhase) -> Void = { _ in }) async throws -> Int {
         guard let sourceID = source.id else { preconditionFailure("Sync requires a saved source") }
@@ -80,8 +82,7 @@ public struct SourceSyncService: Sendable {
         }
     }
 
-    /// Fetches a movie's details from the provider and caches them, if they're missing or over a week old.
-    /// Only Xtream movies have details; for the others this does nothing.
+    /// Fetches and caches a movie's details when they're missing or stale. Only Xtream movies have details.
     public func refreshDetails(of movie: Movie, in source: Source, now: Date = .now) async throws {
         guard movie.needsDetails(now: now), let streamID = movie.xtreamStreamID, source.kind == .xtream else { return }
         let client = XtreamClient(credentials: try xtreamCredentials(for: source), http: http, headers: source.httpHeaders)
@@ -89,8 +90,7 @@ public struct SourceSyncService: Sendable {
         try await database.saveMovieDetails(sourceID: movie.sourceID, stableKey: movie.stableKey, details: info, fetchedAt: now)
     }
 
-    /// Fetches a series' seasons and episodes from the provider and caches them, if they're missing or over a week
-    /// old. Only Xtream series are fetched; M3U ones got their episodes from the playlist.
+    /// Fetches and caches a series' seasons and episodes when they're missing or stale. Xtream only.
     public func refreshDetails(of series: Series, in source: Source, now: Date = .now) async throws {
         guard series.needsDetails(now: now), let seriesID = series.xtreamSeriesID, source.kind == .xtream else { return }
         let client = XtreamClient(credentials: try xtreamCredentials(for: source), http: http, headers: source.httpHeaders)
@@ -98,8 +98,7 @@ public struct SourceSyncService: Sendable {
         try await database.saveSeriesDetails(sourceID: series.sourceID, stableKey: series.stableKey, info: info, fetchedAt: now)
     }
 
-    /// The Xtream account's status from the server, even when it has expired or been disabled. Also stores its
-    /// expiry date on the source.
+    /// The Xtream account's status, even when expired or disabled. Also stores its expiry date on the source.
     public func accountStatus(of source: Source) async throws -> XtreamAccount {
         let client = XtreamClient(credentials: try xtreamCredentials(for: source), http: http, headers: source.httpHeaders)
         let account = try await client.accountInfo()
@@ -230,8 +229,8 @@ public struct SourceSyncService: Sendable {
         return SeriesCatalog(groups: groups, items: items, includesEpisodes: false)
     }
 
-    /// The account's movies, or `nil` when they couldn't be downloaded. Some accounts have live TV only and
-    /// their servers fail the movie calls, which mustn't stop the channels from updating.
+    /// The account's movies, or `nil` when they couldn't be downloaded (live-only accounts often fail these
+    /// calls), so channels still update.
     private static func xtreamMovies(_ client: XtreamClient) async -> MovieCatalog? {
         async let categories = client.vodCategories()
         async let streams = client.vodStreams()
@@ -283,9 +282,8 @@ public struct SourceSyncService: Sendable {
     }
 }
 
-/// Turns M3U entries into a catalog: channels, movies and series, each with a category per `group-title` in order
-/// of first appearance. Episodes are gathered into series by the show name in their titles ("Show S01 E02"),
-/// within their group.
+/// Turns M3U entries into a catalog with a category per `group-title`. Episodes are grouped into series by show
+/// name within their group.
 struct M3UCatalogBuilder {
     static let ungroupedID = ""
 

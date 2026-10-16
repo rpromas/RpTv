@@ -5,9 +5,8 @@
 import Foundation
 import GRDB
 
-// Favorites and recently watched items. Both point at items by `ItemKey`, so they outlive the rows a sync
-// replaces. One whose item has left the catalog stays stored, and shows up again if a later sync brings it back.
-// Items in locked categories are left out of the lists unless the caller says locked content is open.
+// Favorites and recents point at items by `ItemKey`, so they outlive resyncs. Entries whose item left the
+// catalog stay stored and reappear if it comes back.
 
 // MARK: - Writes
 
@@ -16,7 +15,8 @@ extension AppDatabase {
     public static let recentLimit = 50
 
     /// Stars the item, or unstars it if it's starred. A new favorite goes to the end of the list.
-    /// Returns whether the item is now a favorite.
+    ///
+    /// - Returns: Whether the item is now a favorite.
     @discardableResult
     public func toggleFavorite(_ key: ItemKey, at date: Date = .now) async throws -> Bool {
         try await writer.write { db in
@@ -28,8 +28,7 @@ extension AppDatabase {
         }
     }
 
-    /// Puts a source's favorites of one kind in the order of `stableKeys`. Favorites missing from it
-    /// (such as ones whose item isn't in the catalog right now) keep their order, after those.
+    /// Orders a source's favorites of one kind by `stableKeys`; the rest follow in their current order.
     public func reorderFavorites(sourceID: Int64, kind: ItemKind, stableKeys: [String]) async throws {
         try await writer.write { db in
             let favorites = try Favorite
@@ -48,8 +47,7 @@ extension AppDatabase {
         }
     }
 
-    /// Notes that the item was played, moving it to the top of the recent list, and forgets the oldest
-    /// items beyond ``recentLimit``.
+    /// Moves the item to the top of the recent list, trimming it to ``recentLimit``.
     public func recordPlay(_ key: ItemKey, at date: Date = .now) async throws {
         try await writer.write { db in
             try RecentItem(key, playedAt: date).upsert(db)
@@ -73,8 +71,7 @@ extension AppDatabase {
         observe { db in Set(try Favorite.fetchAll(db).map(\.key)) }
     }
 
-    /// A source's favorite channels, in the user's order. Favorites whose channel the catalog doesn't
-    /// have right now are left out.
+    /// A source's favorite channels that are in the catalog, in the user's order.
     public func observeFavoriteChannels(sourceID: Int64, includingLocked: Bool = false) -> AsyncThrowingStream<[Channel], Error> {
         observe { db in
             try Channel.fetchAll(db, Self.libraryItems(.favorites, kind: .channel, sourceID: sourceID, includingLocked: includingLocked))
@@ -121,8 +118,8 @@ extension AppDatabase {
         case recent
     }
 
-    /// The rows a source's favorites or recents of one kind point at, in list order. When a catalog lists
-    /// a stableKey twice, the first row stands for it.
+    /// The rows a source's favorites or recents of one kind point at, in list order. A duplicated `stableKey`
+    /// resolves to its first row.
     private static func libraryItems(_ library: Library, kind: ItemKind, sourceID: Int64, includingLocked: Bool) -> SQLRequest<Row> {
         let (list, order) = switch library {
         case .favorites: ("favorite", "favorite.sortIndex")
@@ -152,8 +149,7 @@ extension AppDatabase {
         "(\(table).categoryID IS NULL OR \(table).categoryID NOT IN (SELECT id FROM mediaCategory WHERE isLocked))"
     }
 
-    /// The channel played last, of any source, or nil when it has left the catalog (or, unless `includingLocked`,
-    /// is in a locked category).
+    /// The channel played last, of any source, or `nil` when it left the catalog or is locked.
     public func lastPlayedChannel(includingLocked: Bool = false) async throws -> Channel? {
         try await reader.read { db in
             try Channel.fetchOne(db, sql: """

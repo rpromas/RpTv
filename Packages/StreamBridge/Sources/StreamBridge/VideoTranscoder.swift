@@ -50,8 +50,8 @@ final class VideoTranscoder {
         av_packet_free(&packet)
     }
 
-    /// The encoder only exists once the first frame has been decoded, because its size comes from the stream.
-    /// The output stream is set up then too, through `prepare`.
+    /// Created on the first decoded frame, which gives the size; the output stream is set up then through
+    /// `prepare`.
     func send(_ input: UnsafeMutablePointer<AVPacket>?,
               prepare: (UnsafeMutablePointer<AVCodecContext>) throws -> Void,
               emit: (UnsafeMutablePointer<AVPacket>) throws -> Void) throws {
@@ -63,8 +63,7 @@ final class VideoTranscoder {
             if received == AV.again || received == AV.eof { break }
             if received < 0 { break }
             decoded.pointee.pts = decoded.pointee.best_effort_timestamp
-            // US broadcasts carry closed captions alongside MPEG-2 frames. VideoToolbox's encoder fails on them
-            // ("Unexpected end of SEI"), and nothing downstream shows them, so they're dropped here.
+            // VideoToolbox fails on closed captions carried with MPEG-2 ("Unexpected end of SEI"); drop them.
             av_frame_remove_side_data(decoded, AV_FRAME_DATA_A53_CC)
             if graph == nil { try setUp(for: decoded, prepare: prepare) }
             try check(av_buffersrc_add_frame_flags(source, decoded, 0), "filter video")
@@ -112,8 +111,7 @@ final class VideoTranscoder {
         let aspect = frame.pointee.sample_aspect_ratio.num > 0 ? frame.pointee.sample_aspect_ratio : AVRational(num: 1, den: 1)
         var sourceArgs = "video_size=\(frame.pointee.width)x\(frame.pointee.height):pix_fmt=\(frame.pointee.format)"
             + ":time_base=\(timeBase.num)/\(timeBase.den):pixel_aspect=\(aspect.num)/\(aspect.den)"
-        // Without the frame rate, the filters' output reports none, and the encoder's keyframe interval and
-        // level would be worked out for the wrong rate. Deinterlacing doubles it on the way.
+        // The encoder's keyframe interval and level need the frame rate, which deinterlacing doubles.
         let sourceRate = decoder.pointee.framerate
         if sourceRate.num > 0, sourceRate.den > 0 { sourceArgs += ":frame_rate=\(sourceRate.num)/\(sourceRate.den)" }
         try check(avfilter_graph_create_filter(&source, avfilter_get_by_name("buffer"), "in", sourceArgs, nil, graph),
@@ -123,8 +121,7 @@ final class VideoTranscoder {
 
         // One frame per field keeps sport and news motion smooth (50i becomes 50p).
         var chain = deinterlace ? "bwdif=mode=send_field:parity=auto:deint=interlaced," : ""
-        // SD broadcasts use non-square pixels (704×480 at 40:33 is 16:9). VideoToolbox doesn't carry the pixel
-        // aspect ratio into its output, so scale to square pixels instead of letting the picture look squashed.
+        // VideoToolbox drops the pixel aspect ratio, so scale non-square pixels (SD broadcasts) to square.
         if aspect.num != aspect.den {
             chain += "scale=w=trunc(iw*sar/2)*2:h=ih,setsar=1,"
         }
@@ -165,10 +162,8 @@ final class VideoTranscoder {
         encoder.pointee.colorspace = frame.pointee.colorspace
         encoder.pointee.color_range = frame.pointee.color_range
         if globalHeader { encoder.pointee.flags |= AV_CODEC_FLAG_GLOBAL_HEADER }
-        // `realtime` favours speed over squeezing bits; `allow_sw` lets the simulator and Macs without an
-        // encoder for the size fall back to software.
-        // VideoToolbox's automatic level can come out too low (level 3.0 for 480p at 60 fps), which Apple TV's
-        // decoder refuses. Declare the level the picture actually needs.
+        // `allow_sw` lets the simulator fall back to software. The automatic level can come out too low for
+        // Apple TV (3.0 for 480p60), so declare the one the picture needs.
         let level = Self.level(width: encoder.pointee.width, height: encoder.pointee.height, frameRate: frameRate)
         // Set on the encoder's own options: AVCodecContext has a generic `level` that would otherwise take it.
         try check(av_opt_set(encoder.pointee.priv_data, "level", level, 0), "H.264 level")

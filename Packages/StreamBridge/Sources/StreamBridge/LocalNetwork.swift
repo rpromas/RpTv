@@ -23,8 +23,7 @@ public enum LocalNetwork {
             let name = String(cString: interface.pointee.ifa_name)
             candidates.append((name, host.withUnsafeBufferPointer { String(cString: $0.baseAddress!) }))
         }
-        // en0 is Wi-Fi on iPhone and iPad; other en* interfaces are Ethernet adapters. Cellular (pdp_ip*) can't
-        // reach an Apple TV, so it's never used.
+        // en0 is Wi-Fi on iPhone and iPad, other en* are Ethernet. Cellular can't reach an Apple TV.
         return candidates.first { $0.name == "en0" }?.address
             ?? candidates.first { $0.name.hasPrefix("en") }?.address
     }

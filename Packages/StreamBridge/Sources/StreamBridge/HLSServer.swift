@@ -8,9 +8,8 @@ import OSLog
 
 private let log = Logger(subsystem: "dev.romas.RpTv", category: "StreamBridge")
 
-/// Serves one bridge's HLS files over HTTP, on every interface: AVPlayer reads them locally, and when AirPlay
-/// takes over, the Apple TV fetches the same URLs over Wi-Fi. Paths carry a random token, so other devices on
-/// the network can't guess them.
+/// Serves one bridge's HLS files over HTTP on every interface, so an AirPlay receiver can fetch the same URLs as
+/// AVPlayer. Paths carry a random token that other devices can't guess.
 public final class HLSServer: @unchecked Sendable {
     public let directory: URL
     public let token = UUID().uuidString.lowercased()

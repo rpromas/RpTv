@@ -4,9 +4,8 @@
 
 /// The G0 character sets teletext pages are written in, from ETSI EN 300 706 clause 15.
 ///
-/// A page picks its set in two parts: the C12–C14 bits of its header give a 3-bit option, and packets X/28 or
-/// M/29 give the 4-bit group it belongs to (table 32). Most broadcasts never send the group, so the stream's
-/// language stands in for it, as receivers' local settings do.
+/// A page's header bits C12–C14 give a 3-bit option, and packets X/28 or M/29 the 4-bit group (table 32). Most
+/// broadcasts never send the group, so the stream's language stands in for it.
 struct TeletextCharset: Equatable {
     enum Alphabet: Equatable {
         case latin(LatinSubset)

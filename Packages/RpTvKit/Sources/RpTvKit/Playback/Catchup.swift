@@ -42,7 +42,7 @@ public enum Catchup {
         var needsSource: Bool { self == .default || self == .append }
     }
 
-    /// The archive URL of the programme from `start` to `end` on an M3U channel, or nil when the
+    /// The archive URL of the programme from `start` to `end` on an M3U channel, or `nil` when the
     /// mode is unknown or the URL can't be built.
     public static func m3uURL(streamURL: String, mode: String, source: String?, start: Date, end: Date,
                               now: Date) -> URL? {

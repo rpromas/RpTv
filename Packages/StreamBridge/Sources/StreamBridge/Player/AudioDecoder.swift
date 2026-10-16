@@ -7,9 +7,8 @@ import CoreMedia
 import FFmpeg
 import Foundation
 
-/// Decodes one audio stream to interleaved 32-bit float PCM, as sample buffers for an
-/// `AVSampleBufferAudioRenderer`. Surround keeps its channels (the system downmixes for the speakers or
-/// headphones); layouts Core Audio can't describe become stereo.
+/// Decodes one audio stream to interleaved 32-bit float sample buffers for an `AVSampleBufferAudioRenderer`.
+/// Surround keeps its channels; layouts Core Audio can't describe become stereo.
 final class AudioDecoder {
     private let context: UnsafeMutablePointer<AVCodecContext>
     private let frame: UnsafeMutablePointer<AVFrame>

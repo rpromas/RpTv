@@ -13,8 +13,8 @@ public enum GzipError: LocalizedError, Equatable {
 
 /// Inflates gzip files chunk by chunk, so large guides never have to fit in memory.
 enum GzipInflater {
-    /// Whether the file starts with the gzip magic bytes. Checked on content rather than the URL,
-    /// since `.gz` guides are sometimes served under other names and URLSession may already have inflated them.
+    /// Whether the file starts with the gzip magic bytes. The URL can't be trusted: guides are served under
+    /// other names, and URLSession may already have inflated them.
     static func isGzip(_ file: URL) throws -> Bool {
         let handle = try FileHandle(forReadingFrom: file)
         defer { try? handle.close() }

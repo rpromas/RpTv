@@ -4,9 +4,8 @@
 
 import Foundation
 
-/// Xtream servers are inconsistent: numbers arrive as strings and strings as numbers, missing values are
-/// `null` or `""`, and empty collections are `[]` or `{}`. These helpers accept any of those shapes and
-/// never throw.
+/// Lenient decoding for inconsistent Xtream JSON: numbers as strings and vice versa, `null` or `""` for missing
+/// values, `[]` or `{}` for empty collections. These helpers never throw.
 extension KeyedDecodingContainer {
     func lossyString(_ key: Key) -> String? {
         if let value = try? decodeIfPresent(String.self, forKey: key) { return value.nonEmpty }

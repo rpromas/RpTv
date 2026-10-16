@@ -40,7 +40,7 @@ public struct Programme: Codable, Sendable, Hashable, Identifiable {
         self.iconURL = iconURL
     }
 
-    /// How far into the programme `date` is, from 0 to 1, or nil when the end is unknown.
+    /// How far into the programme `date` is, from 0 to 1, or `nil` when the end is unknown.
     public func progress(at date: Date) -> Double? {
         guard let stop, stop > start else { return nil }
         return min(max(date.timeIntervalSince(start) / stop.timeIntervalSince(start), 0), 1)

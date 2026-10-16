@@ -7,12 +7,11 @@ import CoreMedia
 import Foundation
 import Synchronization
 
-/// Plays any stream FFmpeg can read: it demuxes and decodes with FFmpeg (video in hardware through VideoToolbox
-/// where it can) and renders through AVFoundation's sample buffer renderers, kept in sync by an
-/// `AVSampleBufferRenderSynchronizer`. Put ``displayLayer`` on screen; Picture in Picture can take it too.
+/// Plays any stream FFmpeg can read, rendering through AVFoundation's sample buffer renderers. Put
+/// ``displayLayer`` on screen; Picture in Picture can take it too.
 ///
-/// The player buffers by itself: it starts the clock once enough of the stream is read, and stops it when the
-/// stream runs dry. All methods can be called from any thread; events arrive on a private queue, in order.
+/// The player buffers by itself, starting the clock once enough is read and stopping it when the stream runs
+/// dry. Methods can be called from any thread; events arrive in order on a private queue.
 public final class StreamPlayer: @unchecked Sendable {
     public let displayLayer = AVSampleBufferDisplayLayer()
     private let audioRenderer = AVSampleBufferAudioRenderer()
@@ -42,8 +41,8 @@ public final class StreamPlayer: @unchecked Sendable {
 
     /// Seconds of stream read ahead before the clock first starts, when the source doesn't say.
     private static let defaultStartBuffer = 1.0
-    /// A live stream with no buffer chosen starts on this much, then plays a little slower until it has
-    /// ``defaultStartBuffer`` (``LiveRateController``), so changing channels doesn't wait for the whole cushion.
+    /// What a live stream with no buffer chosen starts on. ``LiveRateController`` then builds up to
+    /// ``defaultStartBuffer``, so zapping doesn't wait for the whole cushion.
     private static let liveStartBuffer = 0.5
     /// Seconds read ahead before playing again after a stall.
     private static let rebuffer = 2.0

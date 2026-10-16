@@ -10,9 +10,8 @@ import StreamBridge
 
 private let log = Logger(subsystem: "dev.romas.RpTv", category: "StreamBridge")
 
-/// Plays streams AVPlayer can't open by running them through ``HLSBridge``: FFmpeg turns them into HLS on the
-/// device, ``HLSServer`` serves it on the Wi-Fi address, and an ``AVPlayerEngine`` plays that. Because the
-/// result is ordinary HLS, AirPlay can hand it to an Apple TV, which fetches it from the phone.
+/// Plays streams AVPlayer can't open by converting them to HLS with ``HLSBridge``, serving that with
+/// ``HLSServer`` on the Wi-Fi address, and playing it in an ``AVPlayerEngine``, which AirPlay can hand to a TV.
 @MainActor
 @Observable
 final class BridgedPlayerEngine: PlayerEngine {
@@ -37,8 +36,8 @@ final class BridgedPlayerEngine: PlayerEngine {
 
     var state: PlaybackState {
         if let bridgeState { return bridgeState }
-        // A live playlist stalling for a moment (a source hiccup, an Apple TV lagging on 4K) makes AVPlayer give
-        // up. While the bridge still runs, that's reported as buffering and AVPlayer is restarted on it.
+        // AVPlayer gives up when a live playlist stalls briefly. While the bridge runs, report buffering and
+        // restart it.
         if player.state.isFailed, localItem != nil, recoveries < Self.maxRecoveries { return .buffering }
         return player.state
     }
@@ -176,7 +175,7 @@ final class BridgedPlayerEngine: PlayerEngine {
         server?.stop()
         player.stop()
         if let directory = bridge?.directory {
-            // The bridge's thread may still be finishing a write; removing the folder under it just ends it sooner.
+            // The bridge thread may still be writing; removing the folder just ends it sooner.
             try? FileManager.default.removeItem(at: directory)
         }
         bridge = nil

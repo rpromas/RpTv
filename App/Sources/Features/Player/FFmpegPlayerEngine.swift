@@ -9,9 +9,8 @@ import RpTvKit
 import StreamBridge
 import UIKit
 
-/// RpTv's own player, for what AVPlayer can't play: raw MPEG-TS, MKV, RTMP and uncommon codecs. FFmpeg reads and
-/// decodes (``StreamPlayer`` in StreamBridge); AVFoundation's sample buffer layer shows the picture, which
-/// Picture in Picture can take over. Subtitles are drawn by ``SubtitleOverlay``.
+/// The FFmpeg player (``StreamPlayer``), for what AVPlayer can't play: raw MPEG-TS, MKV, RTMP and uncommon
+/// codecs. Subtitles are drawn by ``SubtitleOverlay``.
 @MainActor
 @Observable
 final class FFmpegPlayerEngine: PlayerEngine {
@@ -179,8 +178,7 @@ final class FFmpegPlayerEngine: PlayerEngine {
         }
     }
 
-    /// "French", or "English (Dolby Digital 5.1)" when another audio track is also in English, or "German 2" for a
-    /// second German subtitle track.
+    /// A track name such as "French", "English (Dolby Digital 5.1)" when the language repeats, or "German 2".
     static func name(of track: PlayerTrack, number: Int, among tracks: [PlayerTrack]) -> String {
         func base(_ track: PlayerTrack, _ number: Int) -> String {
             // The captions inside the video have no title or language.

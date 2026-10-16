@@ -6,8 +6,7 @@ import RpTvKit
 import SwiftUI
 import UIKit
 
-/// The player. When the screen is taller than wide, the video docks at the top with the channel list below it;
-/// otherwise the video fills the screen with the controls on top. Both engines get the same controls.
+/// The player. In portrait the video docks at the top above the channel list; otherwise it fills the screen.
 struct PlayerScreen: View {
     let session: PlayerSession
 
@@ -25,8 +24,7 @@ struct PlayerScreen: View {
             let docked = size.height > size.width
             ZStack(alignment: .top) {
                 Color.black
-                // One stack for both layouts, so the video view (and the engine drawing into it) is never rebuilt
-                // when the device rotates.
+                // One stack for both layouts, so rotating never rebuilds the video view.
                 VStack(spacing: 0) {
                     if docked {
                         PlayerTopBar(session: session, showsTitle: false, showsAspect: false, onClose: close)
@@ -78,8 +76,7 @@ struct PlayerScreen: View {
             if phase != .active { session.saveProgress() }
         }
         .onChange(of: session.zapCount) { chrome.showChannelBanner() }
-        // With AirPlay on, streams the FFmpeg player would play go through the bridge instead, so the TV gets
-        // their video.
+        // With AirPlay on, the bridge replaces the FFmpeg player so the TV gets video.
         .onChange(of: airPlay.deviceName != nil, initial: true) { _, isOn in
             session.coordinator.setPrefersBridge(isOn || Self.alwaysBridges)
         }
@@ -177,8 +174,7 @@ struct PlayerScreen: View {
         .clipped()
     }
 
-    /// Tap to show or hide the controls, swipe up or down to change channel, swipe left for the channel list
-    /// (full screen), pinch to fill or fit.
+    /// Tap toggles the controls, vertical swipes zap, a left swipe opens the channel list, pinch fills or fits.
     private func gestureLayer(docked: Bool) -> some View {
         Color.clear
             .contentShape(.rect)

@@ -19,8 +19,7 @@ private struct FavoriteActions: ViewModifier {
     @Environment(AppModel.self) private var model
 
     func body(content: Content) -> some View {
-        // Swipe actions and context menus build their content lazily, outside `body`, where reading
-        // `@Environment` traps. Resolve the model here and hand the closures plain values.
+        // Swipe actions and context menus build lazily, outside `body`, where reading `@Environment` traps.
         let model = model
         let item = item
         let isFavorite = model.isFavorite(item)

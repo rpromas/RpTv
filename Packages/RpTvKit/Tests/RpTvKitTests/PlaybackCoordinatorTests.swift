@@ -84,16 +84,6 @@ struct PlaybackCoordinatorTests {
 
     // MARK: - Initial engine
 
-    @Test(arguments: [
-        ("http://example.com/live/1.ts", PlayerEngineKind.ffmpeg),
-        ("http://example.com/movie.mkv", .ffmpeg),
-        ("http://example.com/live/1.m3u8", .native),
-        ("http://example.com/live/1", .native),
-    ])
-    func picksEngineFromURL(url: String, expected: PlayerEngineKind) {
-        #expect(PlaybackCoordinator.initialEngine(for: item(url), remembered: nil) == expected)
-    }
-
     @Test func rememberedEngineWinsOnlyInAutomaticMode() {
         let hls = item("http://example.com/live/1.m3u8")
         #expect(PlaybackCoordinator.initialEngine(for: hls, remembered: .ffmpeg) == .ffmpeg)

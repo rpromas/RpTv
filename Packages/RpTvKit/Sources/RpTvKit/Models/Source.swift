@@ -14,15 +14,15 @@ public struct Source: Codable, Sendable, Hashable, Identifiable {
     public var id: Int64?
     public var name: String
     public var kind: Kind
-    /// M3U: a remote URL, or a file name inside the app's playlist directory when isLocalFile is set.
+    /// M3U: a remote URL, or a file name in the playlist directory when ``isLocalFile`` is set.
     /// Xtream: the server base URL, e.g. `http://example.com:8080`.
     public var location: String
     public var isLocalFile: Bool
-    /// Xtream username. The password lives in the keychain under credentialKey.
+    /// Xtream username. The password lives in the keychain under ``credentialKey``.
     public var username: String?
     public var credentialKey: String?
-    /// XMLTV guide URL. For M3U it may come from the playlist header. For Xtream it is an optional override:
-    /// otherwise the guide URL is built from the credentials at sync time, since it embeds the password.
+    /// XMLTV guide URL. M3U may take it from the playlist header. For Xtream it's an optional override of the
+    /// URL built at sync time.
     public var epgURL: String?
     public var userAgent: String?
     public var referrer: String?
@@ -83,8 +83,7 @@ public struct Source: Codable, Sendable, Hashable, Identifiable {
         self.accountExpiresAt = accountExpiresAt
     }
 
-    /// How many days are left on the account when it has run out or runs out within `warningDays`, else `nil`.
-    /// Zero or less means it has already expired.
+    /// Days left on the account when it expires within `warningDays` (zero or less once expired), else `nil`.
     public func daysUntilExpiry(now: Date = .now, warningDays: Int = 7, calendar: Calendar = .current) -> Int? {
         guard let accountExpiresAt else { return nil }
         let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: now),

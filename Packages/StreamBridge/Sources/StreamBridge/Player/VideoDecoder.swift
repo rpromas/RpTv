@@ -52,8 +52,7 @@ final class VideoDecoder {
         context.pointee.pkt_timebase = stream.timeBase
         context.pointee.framerate = stream.frameRate
         context.pointee.thread_count = 0
-        // Frame threads hold each picture back by one frame per thread, a few tenths of a second before the
-        // first picture of a live stream. Only software decoding needs them.
+        // Frame threads delay each picture by a frame per thread; only software decoding needs them.
         if Self.decodesInHardware(parameters.pointee.codec_id) { context.pointee.thread_type = FF_THREAD_SLICE }
         if av_hwdevice_ctx_create(&device, AV_HWDEVICE_TYPE_VIDEOTOOLBOX, nil, nil, 0) >= 0 {
             context.pointee.hw_device_ctx = av_buffer_ref(device)
@@ -116,10 +115,8 @@ final class VideoDecoder {
 
 /// Turns decoded frames into pixel buffers the display layer takes.
 ///
-/// Hardware frames already are pixel buffers and pass through untouched. Software frames are copied into pooled
-/// IOSurface buffers. Interlaced video is deinterlaced with `bwdif` (one picture per field, so 50i plays as 50p),
-/// and video with non-square pixels (SD broadcasts, 1440×1080 HD) is scaled to square pixels on the GPU, so the
-/// layer, Picture in Picture and the subtitles all see the real shape.
+/// Hardware frames pass through; software frames are copied into pooled IOSurface buffers. Interlaced video is
+/// deinterlaced with `bwdif` (50i plays as 50p), and non-square pixels are scaled to square on the GPU.
 final class VideoConverter {
     private let timeBase: AVRational
     private let frameRate: AVRational

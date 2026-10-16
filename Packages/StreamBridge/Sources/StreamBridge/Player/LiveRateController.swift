@@ -4,10 +4,9 @@
 
 /// Keeps a live stream's buffer near its target by playing a little slower or faster.
 ///
-/// A server's clock never quite matches the device's. Played at exactly 1×, a stream sent slightly slower than
-/// real time drains the buffer until playback stalls, and one sent faster piles up delay. Like VLC, the player
-/// instead nudges its speed by 2 %, which the audio renderer's time stretching keeps at the same pitch. The
-/// buffer level is averaged over about ten seconds, so network jitter doesn't move the speed.
+/// A server's clock never quite matches the device's: at exactly 1× the buffer slowly drains or grows. Like VLC,
+/// the player nudges its speed by 2 %, pitch-corrected by the audio renderer. The buffer level is averaged over
+/// about ten seconds so network jitter doesn't move the speed.
 struct LiveRateController {
     static let slow: Float = 0.98
     static let fast: Float = 1.02

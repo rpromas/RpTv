@@ -6,8 +6,8 @@ import NukeUI
 import RpTvKit
 import SwiftUI
 
-/// A 2:3 movie poster, or the title on a tinted card while there's none. Images are downsampled to the width
-/// they're shown at, so a grid of thousands stays light on memory.
+/// A 2:3 movie poster, or the title on a tinted card while there's none. Images are downsampled to the
+/// displayed width to keep large grids light on memory.
 struct PosterImage: View {
     let url: String?
     let title: String

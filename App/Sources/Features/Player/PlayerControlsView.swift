@@ -5,8 +5,7 @@
 import RpTvKit
 import SwiftUI
 
-/// The controls drawn over the video. Full screen shows everything; `compact` (the docked portrait player) leaves
-/// the top bar out, since it sits above the video there.
+/// The controls drawn over the video. `compact` (the docked portrait player) leaves out the top bar.
 struct PlayerControlsView: View {
     let session: PlayerSession
     let compact: Bool
@@ -95,8 +94,8 @@ struct ChannelTitle: View {
     }
 }
 
-/// The playing channel's title with what's on: the programme playing from the archive, or the one on air now
-/// with its progress. `fallback` is the second line when the guide has nothing. For a movie or an episode, its title.
+/// The title of what's playing, with the archived programme or the one on air. `fallback` is the second line
+/// when the guide has nothing.
 struct NowPlayingTitle: View {
     let session: PlayerSession
     let fallback: String?

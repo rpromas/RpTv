@@ -37,7 +37,7 @@ struct GuideMatcher {
         }
     }
 
-    /// The guide id for `target`, or nil when the guide doesn't list it.
+    /// The guide id for `target`, or `nil` when the guide doesn't list it.
     func guideID(for target: Target) -> String? {
         if let override = target.epgOverride { return override }
         if let id = target.epgChannelID, let match = ids[id.lowercased()] { return match }
@@ -56,9 +56,9 @@ struct GuideMatcher {
     }
 }
 
-/// Decides, while a guide streams in, which programmes are worth storing: those of guide channels
-/// some playlist channel matches, and how many days of their past to keep. Ids the playlist names
-/// directly are known up front; name matches are added as the guide's `<channel>` elements arrive.
+/// Decides, while a guide streams in, which programmes to store and how many past days to keep.
+///
+/// Ids the playlist names are known up front; name matches are added as `<channel>` elements arrive.
 struct GuideWantedSet {
     /// Lowercased guide id → days of past programmes to keep.
     private var wanted: [String: Int] = [:]
@@ -83,7 +83,7 @@ struct GuideWantedSet {
         }
     }
 
-    /// Days of past programmes to keep for guide channel `id`, or nil when no playlist channel wants it.
+    /// Days of past programmes to keep for guide channel `id`, or `nil` when no playlist channel wants it.
     func retentionDays(for id: String) -> Int? {
         wanted[id.lowercased()]
     }

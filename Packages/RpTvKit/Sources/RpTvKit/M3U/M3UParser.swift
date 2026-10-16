@@ -35,10 +35,9 @@ public struct M3UEntry: Sendable, Hashable {
         case episode
     }
 
-    /// Xtream `m3u_plus` playlists mix movies and series into the channel list. They show in the URL path
-    /// (`/movie/`, `/series/`), or as a file such as `.mp4` in a group that isn't a live one. Recordings named
-    /// like "Show S01E02" are episodes; a `/series/` entry whose name doesn't say which episode it is counts
-    /// as a movie, so it can still be played.
+    /// What the entry holds, judged by its URL path (`/movie/`, `/series/`) or a recording's file extension
+    /// outside a live group. Recordings named like "Show S01E02" are episodes; other `/series/` entries count as
+    /// movies so they can still be played.
     public var contentKind: ContentKind {
         let path = (URLComponents(string: url)?.path ?? url).lowercased()
         if path.contains("/movie/") { return .movie }
@@ -88,8 +87,7 @@ public struct M3UHeader: Sendable, Hashable {
     }
 }
 
-/// What a file given as a playlist turns out to be instead, judged by its first line. People paste their TV guide's
-/// address where the playlist's goes; read as a playlist, every line of the guide would become a channel.
+/// What a file given as a playlist turns out to be instead, judged by its first line.
 public enum M3UForeignContent: Sendable, Equatable {
     /// XML, almost always an XMLTV guide.
     case guide
@@ -206,8 +204,8 @@ public struct M3UParser: Sendable {
         )
     }
 
-    /// Splits `-1 tvg-id="a" group-title="News, Local",Channel Name` into duration, attributes and title.
-    /// The title starts after the first comma that is not inside quotes.
+    /// Splits `-1 tvg-id="a" group-title="News, Local",Channel Name` into duration, attributes and title,
+    /// at the first comma outside quotes.
     static func parseInfo(_ text: Substring) -> (duration: Int?, attributes: [String: String], title: String) {
         var inQuotes = false
         var splitIndex: Substring.Index?

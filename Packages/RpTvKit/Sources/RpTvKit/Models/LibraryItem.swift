@@ -13,8 +13,7 @@ public enum ItemKind: String, Codable, Sendable, CaseIterable {
     case episode
 }
 
-/// Names a channel, movie, series or episode in a way that survives resyncs: a sync deletes and reinserts rows,
-/// so their ids change, but the `stableKey` doesn't.
+/// Names a channel, movie, series or episode by `stableKey`, so it survives resyncs that change row ids.
 public struct ItemKey: Codable, Sendable, Hashable {
     public var sourceID: Int64
     public var kind: ItemKind

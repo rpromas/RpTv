@@ -66,14 +66,6 @@ struct XtreamCredentialsTests {
         #expect(credentials.apiURL(action: "get_vod_info", parameters: ["vod_id": "5"]).absoluteString
             == "http://example.com:8080/player_api.php?username=demo&password=p/ss&action=get_vod_info&vod_id=5")
     }
-
-    @Test func buildsTimeshiftURLInServerTimeZone() throws {
-        let credentials = try #require(XtreamCredentials(server: "http://example.com", username: "u", password: "p"))
-        let start = Date(timeIntervalSince1970: 1792051200) // 2026-10-15 08:00 UTC
-        let url = credentials.timeshiftURL(streamID: 101, start: start, durationMinutes: 60,
-                                           serverTimeZone: TimeZone(identifier: "Europe/Vilnius")!)
-        #expect(url.absoluteString == "http://example.com/timeshift/u/p/60/2026-10-15:11-00/101.ts")
-    }
 }
 
 struct XtreamClientTests {

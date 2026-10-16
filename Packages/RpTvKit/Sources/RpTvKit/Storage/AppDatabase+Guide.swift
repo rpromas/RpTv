@@ -8,14 +8,15 @@ import GRDB
 // MARK: - Writes
 
 extension AppDatabase {
-    /// Programmes that ended over a day ago are dropped on import, unless a channel matched to their
-    /// guide channel has a catch-up archive: then they're kept as many days as it reaches back, up to this.
+    /// The most days of past programmes an import keeps, for channels with a catch-up archive.
     static let maxGuideRetentionDays = 7
 
-    /// Replaces a source's guide with the XMLTV file at `file`, in one transaction: if parsing fails,
-    /// the previous guide stays. Only programmes of guide channels that some channel of the source
-    /// matches are stored, and only as far back as those channels' catch-up reaches (at least a day).
-    /// Returns how many programmes were stored.
+    /// Replaces a source's guide with the XMLTV file at `file` in one transaction, keeping the old guide if
+    /// parsing fails.
+    ///
+    /// Only matched channels' programmes are stored, as far back as their catch-up reaches (at least a day).
+    ///
+    /// - Returns: How many programmes were stored.
     @discardableResult
     public func importGuide(sourceID: Int64, file: URL, now: Date = .now) async throws -> Int {
         try await writer.write { db in
@@ -91,8 +92,7 @@ extension AppDatabase {
         }
     }
 
-    /// Deletes the TV guide of every source. Each one counts as never downloaded, so it's fetched again on the
-    /// next refresh.
+    /// Deletes every source's TV guide, so each is fetched again on the next refresh.
     public func clearGuides() async throws {
         try await writer.write { db in
             try Programme.deleteAll(db)
@@ -146,10 +146,10 @@ extension AppDatabase {
 // MARK: - Reads
 
 extension AppDatabase {
-    /// What's on now and next for each of `channelIDs` at `date`, keyed by channel id. Channels
-    /// without guide data are left out. One query serves a whole list. A programme with no known
-    /// end counts as lasting an hour. Re-subscribe as time passes: the stream only updates when
-    /// the database changes.
+    /// What's on now and next for each of `channelIDs` at `date`, keyed by channel id.
+    ///
+    /// Channels without guide data are left out. The stream only updates when the database changes, so
+    /// re-subscribe as time passes.
     public func observeNowNext(channelIDs: [Int64], at date: Date) -> AsyncThrowingStream<[Int64: NowNext], Error> {
         let now = Int64(date.timeIntervalSince1970)
         let horizon = now + 12 * 3600
@@ -215,8 +215,7 @@ extension AppDatabase {
         }
     }
 
-    /// From the earliest start to the latest end of the programmes of `guideIDs`, or nil when there are none.
-    /// A programme with no known end counts as lasting an hour.
+    /// The span of the programmes of `guideIDs`, or `nil` when there are none.
     public func observeGuideRange(sourceID: Int64, guideIDs: Set<String>) -> AsyncThrowingStream<DateInterval?, Error> {
         let ids = Self.jsonArray(guideIDs)
         return observe { db in

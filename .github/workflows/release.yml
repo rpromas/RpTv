@@ -1,5 +1,5 @@
 # Archives an unsigned Release build, to check that Release compiles without warnings. The signed build for the
-# App Store is archived and uploaded from Xcode (see docs/app-store.md).
+# App Store is archived and uploaded from Xcode.
 name: Release build
 
 on:

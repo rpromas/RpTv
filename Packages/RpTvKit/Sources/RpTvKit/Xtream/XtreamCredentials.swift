@@ -17,8 +17,8 @@ public struct XtreamCredentials: Sendable, Hashable {
         self.password = password
     }
 
-    /// Accepts what users actually type: a bare host, a URL with a trailing slash, or a URL ending in
-    /// `player_api.php` or `get.php`. Returns `nil` when no host can be found.
+    /// Accepts a bare host, a URL with a trailing slash, or one ending in `player_api.php` or `get.php`.
+    /// `nil` when there's no host.
     public init?(server rawServer: String, username: String, password: String) {
         guard let server = Self.normalizeServer(rawServer) else { return nil }
         self.init(server: server, username: username, password: password)
@@ -35,8 +35,8 @@ public struct XtreamCredentials: Sendable, Hashable {
         self.init(server: playlistURL, username: username, password: password)
     }
 
-    /// The server's base URL from what the user typed: `http://` added when there's no scheme, and any query or
-    /// `player_api.php`-style path dropped. `nil` when there's no host.
+    /// The server's base URL from what the user typed, with a default `http://` scheme and no query or API path.
+    /// `nil` when there's no host.
     public static func normalizeServer(_ raw: String) -> URL? {
         var text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return nil }

@@ -234,10 +234,12 @@ struct SeriesSyncTests {
         #expect(try await firstValue(database.observeFavoriteSeries(sourceID: source.id!)).map(\.name) == ["A Show"])
     }
 
-    @Test func deletingSourceRemovesSeriesAndEpisodes() async throws {
+    @Test func deletingSourceRemovesItsCatalog() async throws {
         let source = try await m3uSource()
         try await service().sync(source)
         try await database.deleteSource(id: source.id!)
+        #expect(try await database.channelCount(sourceID: source.id!) == 0)
+        #expect(try await database.movieCount(sourceID: source.id!) == 0)
         #expect(try await database.seriesCount(sourceID: source.id!) == 0)
         let episodes = try await database.reader.read { db in try Episode.fetchCount(db) }
         #expect(episodes == 0)

@@ -26,16 +26,15 @@ public struct EngineMemory {
     }
 }
 
-/// Plays an item on the engine most likely to handle it, and moves to the fallback engine when the first one
-/// fails, or doesn't start a live stream in time.
+/// Plays an item on the engine most likely to handle it, falling back when that one fails or a live stream
+/// doesn't start in time.
 @MainActor
 @Observable
 public final class PlaybackCoordinator {
     /// The engine playing the current item. It changes when playback falls back to another engine.
     public private(set) var engine: (any PlayerEngine)?
     public private(set) var item: PlaybackItem?
-    /// Set while AirPlay is on: streams that would play on the FFmpeg player go through the bridge instead, so the
-    /// TV gets video.
+    /// Set while AirPlay is on, so the bridge replaces the FFmpeg player and the TV gets video.
     public private(set) var prefersBridge = false
 
     public var state: PlaybackState { engine?.state ?? .idle }
@@ -65,8 +64,8 @@ public final class PlaybackCoordinator {
         engine?.stop()
     }
 
-    /// The engine to try first. A forced preference wins; otherwise the engine that last worked for this item,
-    /// otherwise a guess from the URL. With `prefersBridge`, the bridge stands in for the FFmpeg player.
+    /// The engine to try first: a forced preference, else the engine that last worked, else a guess from the
+    /// URL. With `prefersBridge`, the bridge replaces the FFmpeg player.
     public static func initialEngine(for item: PlaybackItem, remembered: PlayerEngineKind?,
                                      prefersBridge: Bool = false) -> PlayerEngineKind {
         guard item.enginePreference == .automatic else {
@@ -137,8 +136,7 @@ public final class PlaybackCoordinator {
         case .playing where !hasStarted:
             hasStarted = true
             timeoutTask?.cancel()
-            // The bridge stands in for the FFmpeg player during AirPlay: remember the stream as one AVPlayer can't
-            // open directly.
+            // Remember a bridged stream as one AVPlayer can't open directly.
             if item.enginePreference == .automatic { memory.remember(engine.kind == .bridge ? .ffmpeg : engine.kind, for: item.id) }
         case .failed where !hasStarted:
             fallBack()

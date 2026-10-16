@@ -14,8 +14,8 @@ public struct Channel: Codable, Sendable, Hashable, Identifiable {
     public var name: String
     public var number: Int?
     public var logoURL: String?
-    /// Direct stream URL (M3U sources). Xtream channels use xtreamStreamID instead,
-    /// because their URLs embed the account password, which never goes in the database.
+    /// Direct stream URL (M3U sources). Xtream channels use ``xtreamStreamID``, since their URLs embed the
+    /// password.
     public var streamURL: String?
     public var xtreamStreamID: Int?
     public var epgChannelID: String?
@@ -25,8 +25,7 @@ public struct Channel: Codable, Sendable, Hashable, Identifiable {
     public var guideID: String?
     /// Days of catch-up archive the provider keeps, if any.
     public var catchupDays: Int?
-    /// How an M3U channel's archive URL is built (`default`, `append`, `shift`, `flussonic`), from the
-    /// playlist's `catchup` attribute. Xtream channels leave it empty: their archive URL is always the same shape.
+    /// How an M3U channel's archive URL is built (`default`, `append`, `shift`, `flussonic`). `nil` for Xtream.
     public var catchupMode: String?
     /// The M3U `catchup-source` template the mode fills in.
     public var catchupSource: String?

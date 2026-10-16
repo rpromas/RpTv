@@ -52,8 +52,7 @@ struct AirPlayPlaceholder: View {
     }
 }
 
-/// Shown when a stream still plays on the FFmpeg player during AirPlay (the bridge couldn't convert it, or the
-/// source forces FFmpeg). That player decodes video on the device, so AirPlay only carries its sound.
+/// Shown when a stream plays on the FFmpeg player during AirPlay, which then carries only its sound.
 struct AirPlaySoundOnlyNotice: View {
     let deviceName: String
 

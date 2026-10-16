@@ -99,8 +99,7 @@ final class PacketQueue: @unchecked Sendable {
         condition.unlock()
     }
 
-    /// Drops packets from before `time`. Keeps the queues of tracks nobody listens to short, while leaving what a
-    /// switch to them needs.
+    /// Drops packets from before `time`, keeping unselected tracks' queues short.
     func dropOlder(than time: Double) {
         condition.lock()
         while head < entries.count, let packetTime = entries[head].time, packetTime < time {

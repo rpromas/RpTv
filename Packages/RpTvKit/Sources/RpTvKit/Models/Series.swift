@@ -4,8 +4,7 @@
 
 import Foundation
 
-/// A TV series. Its seasons and episodes are stored apart (``Season``, ``Episode``), keyed by the series'
-/// `stableKey`, so a resync that replaces this row keeps them.
+/// A TV series. Its ``Season``s and ``Episode``s point at it by `stableKey`, so they survive resyncs.
 public struct Series: Codable, Sendable, Hashable, Identifiable {
     public var id: Int64?
     public var sourceID: Int64
@@ -73,8 +72,7 @@ public struct Series: Codable, Sendable, Hashable, Identifiable {
         self.detailsFetchedAt = detailsFetchedAt
     }
 
-    /// Whether opening the series should fetch its episodes: only Xtream series are fetched, and only when
-    /// they never were or it was over a week ago.
+    /// Whether opening the series should fetch its episodes: Xtream only, when missing or stale.
     public func needsDetails(now: Date = .now) -> Bool {
         guard xtreamSeriesID != nil else { return false }
         guard let fetched = detailsFetchedAt else { return true }
@@ -152,7 +150,7 @@ public struct Episode: Codable, Sendable, Hashable, Identifiable {
     public var rating: Double?
     public var airDate: String?
     public var containerExtension: String?
-    /// Xtream episodes are played by id, because their URLs embed the account password. M3U ones use streamURL.
+    /// Xtream episodes are played by id, since their URLs embed the password. M3U ones use ``streamURL``.
     public var xtreamEpisodeID: String?
     public var streamURL: String?
     public var userAgent: String?
@@ -221,8 +219,9 @@ public struct EpisodeName: Sendable, Hashable {
         self.title = title
     }
 
-    /// Parses "Show S01 E02", "Show S01E02", "Show - s1e2 - Title", "Show.Name.S01.E02" and "Show 1x02" (with a
-    /// two-digit episode, so "4x4" isn't one).
+    /// Parses "Show S01 E02", "Show S01E02", "Show - s1e2 - Title", "Show.Name.S01.E02" and "Show 1x02".
+    /// The `x` form needs a two-digit episode, so "4x4" isn't one.
+    ///
     /// Returns `nil` when there's no season and episode, or no show name before them.
     public init?(parsing name: String) {
         let separators = CharacterSet(charactersIn: " ._-:|–—").union(.whitespaces)

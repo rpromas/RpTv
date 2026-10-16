@@ -33,9 +33,10 @@ public enum XMLTVError: LocalizedError, Equatable {
 /// Streams an XMLTV file, handing each `<channel>` and `<programme>` to a callback as it is read,
 /// so even a guide of several hundred megabytes never sits in memory.
 public enum XMLTVParser {
-    /// Parses `file`. Programmes without a valid `start` or `channel` are skipped. When the XML breaks
-    /// partway (a truncated download, a stray `&`), whatever was read before stays delivered; it only
-    /// throws when nothing usable was found. Errors thrown by the callbacks stop parsing and are rethrown.
+    /// Parses `file`, skipping programmes without a valid `start` or `channel`.
+    ///
+    /// Broken XML (a truncated download, a stray `&`) only throws when nothing usable was read before it.
+    /// Errors thrown by the callbacks stop parsing and are rethrown.
     public static func parse(
         _ file: URL,
         channel: (XMLTVChannel) throws -> Void,

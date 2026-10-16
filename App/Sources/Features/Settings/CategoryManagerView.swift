@@ -5,8 +5,7 @@
 import RpTvKit
 import SwiftUI
 
-/// A source's categories of one kind: show or hide them, rename them, drag them into order, and lock them.
-/// The changes are keyed by the provider's category id, so they survive refreshes.
+/// Hides, renames, reorders and locks a source's categories of one kind. Changes survive refreshes.
 struct CategoryManagerView: View {
     let sourceID: Int64
     let kind: MediaCategory.Kind
@@ -139,7 +138,7 @@ struct CategoryManagerView: View {
         update(category) { $0.isHidden = hidden }
     }
 
-    /// Locking and unlocking are parental settings, so they need the PIN, unless it was entered in this session.
+    /// Locking and unlocking need the PIN unless the session is already unlocked.
     private func toggleLock(_ category: MediaCategory) {
         guard model.parental.hasPIN else {
             needsPIN = true

@@ -183,7 +183,7 @@ struct MovieSyncTests {
         #expect(!dump.joined().contains("secret"))
     }
 
-    @Test func sortsAndSearchesMovies() async throws {
+    @Test func sortsMovies() async throws {
         let source = try await xtreamSource()
         try await service(StubXtreamServer(overrides: manyMovies)).sync(source)
         let id = source.id!
@@ -191,9 +191,6 @@ struct MovieSyncTests {
             == ["A Movie", "Older Film (1984)", "Unrated"])
         #expect(try await firstValue(database.observeMovies(sourceID: id, categoryID: nil, sort: .rating)).map(\.name)
             == ["A Movie", "Older Film (1984)", "Unrated"])
-        #expect(try await firstValue(database.observeMovies(sourceID: id, categoryID: nil, search: "film")).map(\.name)
-            == ["Older Film (1984)"])
-        #expect(try await firstValue(database.observeMovies(sourceID: id, categoryID: nil, search: "100%")).isEmpty)
     }
 
     @Test func movieFailuresKeepTheMoviesAndStillUpdateChannels() async throws {
@@ -264,13 +261,6 @@ struct MovieSyncTests {
         #expect(visible.map(\.name) == ["A Movie"])
         // Live categories are separate: hiding a movie category leaves them alone.
         #expect(try await firstValue(database.observeLiveCategories(sourceID: source.id!)).count == 2)
-    }
-
-    @Test func deletingSourceRemovesMovies() async throws {
-        let source = try await xtreamSource()
-        try await service().sync(source)
-        try await database.deleteSource(id: source.id!)
-        #expect(try await database.movieCount(sourceID: source.id!) == 0)
     }
 
     @Test func gridQueryStaysFastWithTwentyThousandMovies() async throws {

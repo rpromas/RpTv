@@ -162,9 +162,8 @@ private final class Pipeline {
         while !isCancelled() {
             let read = av_read_frame(input, packet)
             if read == AV.eof {
-                // A live source ending isn't the end of the channel: IPTV servers and proxies drop connections,
-                // and FFmpeg has already tried to reconnect. Marking the playlist finished would make the TV
-                // play out what it has and stop, so report it instead.
+                // A live source ending means a dropped connection FFmpeg couldn't restore. Report it rather than
+                // finishing the playlist, which would make the TV stop.
                 if source.isLive {
                     log.error("Live source stopped after reconnecting")
                     throw BridgeError.sourceStopped
@@ -214,8 +213,7 @@ private final class Pipeline {
             options["reconnect_delay_max"] = "4"
             options["reconnect_max_retries"] = "10"
             options["reconnect_delay_total_max"] = "30"
-            // Live servers close connections now and then; reading on through a reconnect keeps the channel going
-            // without a gap the player notices.
+            // Read on through reconnects so live channels survive dropped connections.
             if source.isLive { options["reconnect_at_eof"] = "1" }
             if let userAgent = source.headers["User-Agent"] { options["user_agent"] = userAgent }
             let others = source.headers.filter { $0.key != "User-Agent" }

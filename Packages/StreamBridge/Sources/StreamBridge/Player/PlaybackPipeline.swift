@@ -11,12 +11,11 @@ import Synchronization
 
 private let log = Logger(subsystem: "dev.romas.RpTv", category: "StreamPlayer")
 
-/// The threads behind a ``StreamPlayer``: one reads and demuxes, one decodes video into the display layer's
-/// renderer, one decodes audio into the audio renderer. The renderers play what they're given against the
-/// synchronizer's clock, which ``StreamPlayer`` starts and stops.
+/// The threads behind a ``StreamPlayer``: one reads and demuxes, one decodes video and one decodes audio into
+/// their renderers, which play against the clock ``StreamPlayer`` controls.
 ///
-/// Every timestamp is moved onto one timeline before it's queued: finite media start at zero, live streams start
-/// near zero and stay continuous across discontinuities (``LiveTimeline``).
+/// Timestamps are moved onto one timeline starting near zero before queuing; live streams stay continuous
+/// across discontinuities (``LiveTimeline``).
 final class PlaybackPipeline: @unchecked Sendable {
     enum Message: Sendable {
         case opened(Info)
@@ -142,9 +141,8 @@ final class PlaybackPipeline: @unchecked Sendable {
         }
     }
 
-    /// How far every stream that matters has been read: the earliest of the latest timestamps of the video and
-    /// the selected audio. `.infinity` once the end is reached. `lenient` ignores a stream that hasn't sent
-    /// anything (an audio stream that's declared but silent shouldn't hold up the picture).
+    /// How far both the video and the selected audio have been read, or `.infinity` at the end. `lenient`
+    /// ignores a stream that hasn't sent anything yet, such as declared but silent audio.
     func bufferedUntil(lenient: Bool) -> Double? {
         let (selected, videoEnabled, videoUnavailable, unavailable) = state.withLock {
             ($0.selectedAudio, $0.videoEnabled, $0.videoUnavailable, $0.unavailableAudio)
@@ -238,9 +236,8 @@ final class PlaybackPipeline: @unchecked Sendable {
         var options: [String: String] = [
             // Give up on a dead server instead of hanging.
             "rw_timeout": "15000000",
-            // MPEG-TS has no header, so FFmpeg reads all of this before anything plays: on a channel sent in real
-            // time, that much waiting. Live channels get half a second, which finds every stream; the decoders
-            // learn the rest (such as the picture size, sent with the next keyframe).
+            // MPEG-TS has no header, so probing waits on real-time data. Half a second finds every stream of a
+            // live channel; the decoders learn the rest.
             "analyzeduration": source.isLive ? "500000" : "3000000",
             "probesize": "3000000",
         ]
@@ -501,8 +498,8 @@ final class PlaybackPipeline: @unchecked Sendable {
             drained = false
         }
 
-        /// US broadcasts carry CEA-608 captions in the video frames. They're read from every frame, shown or not,
-        /// since each frame holds only two characters.
+        /// CEA-608 captions from the video frames. Read from every frame, shown or not, since each holds only two
+        /// characters.
         func readCaptions(of frame: UnsafeMutablePointer<AVFrame>) {
             guard let data = av_frame_get_side_data(frame, AV_FRAME_DATA_A53_CC), data.pointee.size > 0 else { return }
             let timestamp = frame.pointee.best_effort_timestamp != AV.noPTS ? frame.pointee.best_effort_timestamp : frame.pointee.pts

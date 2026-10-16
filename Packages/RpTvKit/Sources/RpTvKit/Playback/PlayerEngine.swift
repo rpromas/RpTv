@@ -18,8 +18,7 @@ public enum PlayerEngineKind: Sendable, Codable, CaseIterable {
     case native
     /// RpTv's FFmpeg player: everything else (raw MPEG-TS, MKV, RTMP, uncommon codecs).
     case ffmpeg
-    /// FFmpeg repackages the stream as local HLS (re-encoding what Apple can't decode) and AVPlayer plays that.
-    /// Slower to start than the FFmpeg player, but AirPlay can carry its video. Stands in for the FFmpeg
+    /// FFmpeg converts the stream to local HLS for AVPlayer, so AirPlay can carry its video. Replaces the FFmpeg
     /// player while AirPlay is on.
     case bridge
 }
@@ -155,9 +154,8 @@ public enum EngineSelector {
         return .native
     }
 
-    /// The engine to retry with after `failed` could not play a stream. While AirPlay is on (`prefersBridge`),
-    /// streams AVPlayer can't open go through the bridge before the FFmpeg player, which can only send sound
-    /// over AirPlay.
+    /// The engine to retry with after `failed` couldn't play a stream. With `prefersBridge`, the bridge comes
+    /// before the FFmpeg player, which sends only sound over AirPlay.
     public static func fallback(after failed: PlayerEngineKind, prefersBridge: Bool = false) -> PlayerEngineKind? {
         switch failed {
         case .native: prefersBridge ? .bridge : .ffmpeg

@@ -49,8 +49,9 @@ public struct EPGSyncService: Sendable {
         return try SourceSyncService.xtreamCredentials(for: source, in: credentials).xmltvURL
     }
 
-    /// Downloads and stores the source's guide, and returns how many programmes were kept.
-    /// Returns 0 without touching anything when the source has no guide. Records the outcome on the source.
+    /// Downloads and stores the source's guide, recording the outcome on the source.
+    ///
+    /// - Returns: How many programmes were kept, or 0 when the source has no guide.
     @discardableResult
     @concurrent public func sync(_ source: Source, now: Date = .now) async throws -> Int {
         guard let sourceID = source.id else { preconditionFailure("Sync requires a saved source") }

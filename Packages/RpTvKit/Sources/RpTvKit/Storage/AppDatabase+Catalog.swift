@@ -86,8 +86,7 @@ public struct SeriesCatalog: Sendable {
 
     public var groups: [CatalogGroup]
     public var items: [Item]
-    /// Whether the items carry every episode (M3U). Otherwise (Xtream) episodes are fetched when a series is
-    /// opened, and the ones already fetched are kept.
+    /// Whether the items carry every episode (M3U). Otherwise (Xtream) fetched episodes are kept.
     public var includesEpisodes: Bool
 
     public init(groups: [CatalogGroup], items: [Item], includesEpisodes: Bool) {
@@ -162,10 +161,10 @@ extension AppDatabase {
         try await writer.write { db in try Self.replaceLiveCatalog(db, sourceID: sourceID, with: catalog) }
     }
 
-    /// Atomically swaps a source's catalog for `catalog`. Readers keep seeing the old catalog until the
-    /// transaction commits. Categories the user hid stay hidden, guide overrides stay on their channels,
-    /// channels are matched to the guide the source already has, and movies and series keep their cached details.
-    /// Watch progress, favorites and recents point at items by `stableKey`, so they're untouched.
+    /// Atomically swaps a source's catalog for `catalog`.
+    ///
+    /// The user's category changes, guide overrides and cached details carry over, and channels are matched to
+    /// the stored guide. Progress, favorites and recents key on `stableKey`, so they're untouched.
     public func replaceCatalog(sourceID: Int64, with catalog: SourceCatalog) async throws {
         try await writer.write { db in
             try Self.replaceLiveCatalog(db, sourceID: sourceID, with: catalog.live)
@@ -201,7 +200,7 @@ extension AppDatabase {
     }
 
     private static func replaceMovieCatalog(_ db: Database, sourceID: Int64, with catalog: MovieCatalog) throws {
-        // Details are only fetched when a movie is opened, so they're carried over rather than lost on every sync.
+        // Details are fetched on open, so carry them over.
         let cached = try Dictionary(
             Movie.filter(Column("sourceID") == sourceID && Column("detailsFetchedAt") != nil).fetchAll(db)
                 .map { ($0.stableKey, $0) },
@@ -258,8 +257,9 @@ extension AppDatabase {
         try rebuildSearchIndex(db, seriesSearchTable)
     }
 
-    /// Replaces a source's categories of one kind, carrying over what the user changed (hidden, locked, renamed,
-    /// reordered) by remote id. Returns the new category ids by remote id.
+    /// Replaces a source's categories of one kind, carrying the user's changes over by remote id.
+    ///
+    /// - Returns: The new category ids by remote id.
     private static func replaceCategories(_ db: Database, sourceID: Int64, kind: MediaCategory.Kind,
                                           with groups: [CatalogGroup]) throws -> [String: Int64] {
         let existing = MediaCategory.filter(Column("sourceID") == sourceID && Column("kind") == kind)
@@ -305,8 +305,7 @@ extension AppDatabase {
         }
     }
 
-    /// Puts a source's categories of one kind in the order of `remoteIDs`. Categories missing from it keep their
-    /// order, after those.
+    /// Orders a source's categories of one kind by `remoteIDs`; the rest follow in their current order.
     public func reorderCategories(sourceID: Int64, kind: MediaCategory.Kind, remoteIDs: [String]) async throws {
         try await writer.write { db in
             let categories = try MediaCategory
@@ -337,8 +336,7 @@ extension AppDatabase {
         [Column("customSortIndex") == nil, Column("customSortIndex"), Column("sortIndex")]
     }
 
-    /// Every category of one kind, hidden ones included, in the user's order, each with its item count.
-    /// For the screen where the user manages them.
+    /// Every category of one kind, hidden ones included, in the user's order, with item counts.
     public func observeAllCategories(sourceID: Int64, kind: MediaCategory.Kind) -> AsyncThrowingStream<[CategorySummary], Error> {
         let itemTable = switch kind {
         case .live: Channel.databaseTableName
@@ -356,8 +354,7 @@ extension AppDatabase {
         }
     }
 
-    /// Ids of the categories the user locked. Their items are left out of lists, search, favorites and recents
-    /// unless the caller says locked content is open.
+    /// Ids of the categories the user locked.
     static var lockedCategoryIDs: QueryInterfaceRequest<MediaCategory> {
         MediaCategory.filter(Column("isLocked") == true).select(Column("id"))
     }
@@ -374,8 +371,8 @@ extension AppDatabase {
         observe { db in try Source.order(Column("createdAt")).fetchAll(db) }
     }
 
-    /// Visible live categories of a source, in the user's order, each with its channel count. Empty categories are
-    /// skipped. Locked ones are listed, so the user can unlock them.
+    /// Visible, non-empty live categories of a source, in the user's order, with channel counts. Locked ones
+    /// are included so they can be unlocked.
     public func observeLiveCategories(sourceID: Int64) -> AsyncThrowingStream<[CategorySummary], Error> {
         observeCategories(sourceID: sourceID, kind: .live, itemTable: Channel.databaseTableName)
     }
@@ -395,9 +392,8 @@ extension AppDatabase {
         }
     }
 
-    /// Channels of a source, optionally narrowed to one category and to names with words starting with each
-    /// word of `search` (ignoring case and diacritics). Channels in hidden categories are left out unless a
-    /// category is picked explicitly. Channels in locked categories are left out unless `includingLocked`.
+    /// Channels of a source, optionally narrowed to a category and by `search` (word prefixes, ignoring case
+    /// and diacritics). Hidden categories are left out unless picked; locked ones unless `includingLocked`.
     public func observeChannels(sourceID: Int64, categoryID: Int64?, search: String = "",
                                 includingLocked: Bool = false) -> AsyncThrowingStream<[Channel], Error> {
         observe { db in
